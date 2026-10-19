@@ -8,6 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = Preferences()
     private var coordinator: ShelfCoordinator?
     private var statusMenu: StatusMenuController?
+    private var dragMonitor: DragMonitor?
+    private var hotKeyCenter: HotKeyCenter?
     private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -33,8 +35,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preferences.$showInMenuBar
             .sink { statusMenu.setVisible($0) }
             .store(in: &subscriptions)
+
+        let dragMonitor = DragMonitor(
+            preferences: preferences,
+            isShelfWindow: { [weak coordinator] in coordinator?.isShelfWindow(number: $0) ?? false },
+            onShake: { [weak coordinator] in coordinator?.openNewShelf(at: $0) }
+        )
+        dragMonitor.start()
+        self.dragMonitor = dragMonitor
+
+        let hotKeyCenter = HotKeyCenter(onNewShelf: { [weak coordinator] in
+            coordinator?.openNewShelf(at: NSEvent.mouseLocation)
+        })
+        self.hotKeyCenter = hotKeyCenter
+        // On first launch, leave the default hot key unassigned if a system shortcut already uses it.
+        if !preferences.hasCheckedHotKeyConflict {
+            if SystemHotKeys.isTaken(.defaultNewShelf) { preferences.newShelfHotKey = nil }
+            preferences.hasCheckedHotKeyConflict = true
+        }
         preferences.$newShelfHotKey
-            .sink { statusMenu.setNewShelfHotKey($0) }
+            .sink { hotKey in
+                hotKeyCenter.register(hotKey)
+                statusMenu.setNewShelfHotKey(hotKey)
+            }
             .store(in: &subscriptions)
 
         coordinator.restorePinnedShelves()
