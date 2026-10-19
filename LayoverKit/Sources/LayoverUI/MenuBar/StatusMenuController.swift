@@ -5,6 +5,7 @@ import LayoverCore
 @MainActor
 public final class StatusMenuController: NSObject, NSMenuDelegate {
     private let onNewShelf: () -> Void
+    private let onCheckForUpdates: () -> Void
     private let onOpenSettings: () -> Void
     private let recentShelves: () -> [Shelf]
     private let onReopen: (Shelf.ID) -> Void
@@ -20,12 +21,14 @@ public final class StatusMenuController: NSObject, NSMenuDelegate {
 
     public init(
         onNewShelf: @escaping () -> Void,
+        onCheckForUpdates: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
         recentShelves: @escaping () -> [Shelf],
         onReopen: @escaping (Shelf.ID) -> Void,
         onClearRecent: @escaping () -> Void
     ) {
         self.onNewShelf = onNewShelf
+        self.onCheckForUpdates = onCheckForUpdates
         self.onOpenSettings = onOpenSettings
         self.recentShelves = recentShelves
         self.onReopen = onReopen
@@ -34,6 +37,8 @@ public final class StatusMenuController: NSObject, NSMenuDelegate {
         configureButton()
         statusItem.menu = makeMenu()
     }
+
+    var menu: NSMenu? { statusItem.menu }
 
     public func setVisible(_ visible: Bool) {
         statusItem.isVisible = visible
@@ -69,6 +74,10 @@ public final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(recentItem)
 
         menu.addItem(.separator())
+
+        let updatesItem = NSMenuItem(title: String(localized: "Check for Updates…"), action: #selector(checkForUpdates), keyEquivalent: "")
+        updatesItem.target = self
+        menu.addItem(updatesItem)
 
         let settingsItem = NSMenuItem(title: String(localized: "Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -113,6 +122,7 @@ public final class StatusMenuController: NSObject, NSMenuDelegate {
     // MARK: Actions
 
     @objc private func newShelf() { onNewShelf() }
+    @objc private func checkForUpdates() { onCheckForUpdates() }
     @objc private func openSettings() { onOpenSettings() }
     @objc private func clearRecent() { onClearRecent() }
 

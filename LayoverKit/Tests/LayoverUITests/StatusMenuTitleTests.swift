@@ -22,3 +22,28 @@ private func ownedItem(_ filename: String) -> Item {
     shelf.items = [ownedItem("note.txt"), ownedItem("a.png"), ownedItem("b.png")]
     #expect(StatusMenuController.title(for: shelf) == "note.txt and 2 more")
 }
+
+@Test @MainActor func menuListsCheckForUpdatesAboveSettings() {
+    let controller = StatusMenuController(
+        onNewShelf: {}, onCheckForUpdates: {}, onOpenSettings: {},
+        recentShelves: { [] }, onReopen: { _ in }, onClearRecent: {}
+    )
+    let titles = controller.menu?.items.map(\.title) ?? []
+    let updates = titles.firstIndex(of: "Check for Updates…")
+    let settings = titles.firstIndex(of: "Settings…")
+    #expect(updates != nil)
+    #expect(settings != nil)
+    if let updates, let settings { #expect(updates < settings) }
+}
+
+@Test @MainActor func checkForUpdatesItemCallsItsHandler() throws {
+    var checks = 0
+    let controller = StatusMenuController(
+        onNewShelf: {}, onCheckForUpdates: { checks += 1 }, onOpenSettings: {},
+        recentShelves: { [] }, onReopen: { _ in }, onClearRecent: {}
+    )
+    let item = try #require(controller.menu?.items.first { $0.title == "Check for Updates…" })
+    let action = try #require(item.action)
+    _ = item.target?.perform(action)
+    #expect(checks == 1)
+}

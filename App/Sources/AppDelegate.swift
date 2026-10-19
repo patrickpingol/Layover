@@ -3,12 +3,14 @@ import Combine
 import LayoverCore
 import LayoverUI
 import os
+import Sparkle
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "dev.mauipingol.Layover", category: "App")
 
     private let preferences = Preferences()
+    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     private var coordinator: ShelfCoordinator?
     private var statusMenu: StatusMenuController?
     private var dragMonitor: DragMonitor?
@@ -29,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let statusMenu = StatusMenuController(
             onNewShelf: { [weak coordinator] in coordinator?.openNewShelf(at: NSEvent.mouseLocation) },
+            onCheckForUpdates: { [weak self] in self?.updaterController.checkForUpdates(nil) },
             onOpenSettings: { [weak self] in self?.settingsWindow?.show() },
             recentShelves: { [weak coordinator] in coordinator?.library.recent ?? [] },
             onReopen: { [weak coordinator] id in coordinator?.reopen(id) },

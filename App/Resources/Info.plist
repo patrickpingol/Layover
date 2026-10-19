@@ -26,5 +26,15 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<!-- Placeholder: replace with the hosted appcast URL. See docs/release.md. -->
+	<key>SUFeedURL</key>
+	<string>https://example.invalid/appcast.xml</string>
+	<!-- Placeholder: replace with the output of Sparkle's generate_keys. See docs/release.md. -->
+	<key>SUPublicEDKey</key>
+	<string>REPLACE_WITH_PUBLIC_ED_KEY_FROM_GENERATE_KEYS</string>
 </dict>
 </plist>

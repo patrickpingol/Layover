@@ -2,6 +2,7 @@ name: Layover
 options: { bundleIdPrefix: dev.mauipingol, deploymentTarget: { macOS: "14.0" } }
 packages:
   LayoverKit: { path: LayoverKit }
+  Sparkle: { url: https://github.com/sparkle-project/Sparkle, from: "2.6.0" }
 targets:
   Layover:
     type: application
@@ -9,20 +10,29 @@ targets:
     sources:
       - path: App/Sources
       - path: App/Resources
-        excludes: [Info.plist, Layover.entitlements]
-    dependencies: [{ package: LayoverKit, product: LayoverCore }, { package: LayoverKit, product: LayoverUI }]
+        excludes: [Info.plist, Layover.entitlements, Layover.AdHoc.entitlements]
+    dependencies: [{ package: LayoverKit, product: LayoverCore }, { package: LayoverKit, product: LayoverUI }, { package: Sparkle }]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.mauipingol.Layover
         SWIFT_VERSION: "6.0"
         ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_ENTITLEMENTS: App/Resources/Layover.entitlements
         INFOPLIST_FILE: App/Resources/Info.plist
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_STYLE: Manual
+        # Ad-hoc signing, for local builds. For a Developer ID build (docs/release.md), change
+        # CODE_SIGN_IDENTITY, set DEVELOPMENT_TEAM and remove OTHER_CODE_SIGN_FLAGS.
         CODE_SIGN_IDENTITY: "-"
         # Xcode drops the runtime flag for ad-hoc identities; codesign still honors it.
         OTHER_CODE_SIGN_FLAGS: "-o runtime"
         # With library validation (runtime flag) an ad-hoc signed debug dylib is rejected at launch.
         ENABLE_DEBUG_DYLIB: NO
+      configs:
+        Debug:
+          # Adds disable-library-validation: with the hardened runtime an ad-hoc signed app cannot load the
+          # (also ad-hoc signed) embedded Sparkle.framework, as it has no Team ID. Debug builds only.
+          CODE_SIGN_ENTITLEMENTS: App/Resources/Layover.AdHoc.entitlements
+        Release:
+          # Strict entitlements. Release must be signed with a Developer ID identity; ad-hoc it won't launch.
+          CODE_SIGN_ENTITLEMENTS: App/Resources/Layover.entitlements

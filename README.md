@@ -1,0 +1,44 @@
+# Layover
+
+Layover is a macOS menu-bar utility for temporarily collecting dragged content. Shake while dragging, or press a hot key, and a floating Shelf appears at the cursor. Drop files, text, links and images onto it, then drag everything out again when you reach the destination. Files stay where they are and are referenced in place. Layover is sandboxed and asks for no Accessibility, Input Monitoring or Screen Recording permission.
+
+## Requirements
+
+- macOS 14 or later
+- Xcode 26 or later (tested with 27.1)
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+
+## Build
+
+```sh
+brew install xcodegen
+xcodegen generate
+open Layover.xcodeproj
+```
+
+The Xcode project is generated from `project.yml` and is not committed. The first build resolves the Sparkle package, which needs network access.
+
+## Tests
+
+```sh
+swift test --package-path LayoverKit
+```
+
+With only the Command Line Tools installed (no full Xcode selected), add the testing plugin path:
+
+```sh
+swift test --package-path LayoverKit \
+  -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing
+```
+
+## Docs
+
+- [GLOSSARY.md](GLOSSARY.md): the project's vocabulary (Shelf, Item, Handle, Shake, ...)
+- [docs/adr](docs/adr): architecture decision records
+- [docs/research](docs/research/dropover-teardown.md): teardown of a comparable app
+- [docs/qa](docs/qa/v1-checklist.md): the v1 manual QA checklist
+- [docs/release.md](docs/release.md): signing, notarization and Sparkle updates
+
+## License
+
+MIT. See [LICENSE](LICENSE).

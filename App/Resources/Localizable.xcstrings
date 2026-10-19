@@ -34,6 +34,17 @@
         }
       }
     },
+    "Check for Updates…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for Updates…"
+          }
+        }
+      }
+    },
     "Settings…": {
       "extractionState": "manual",
       "localizations": {
