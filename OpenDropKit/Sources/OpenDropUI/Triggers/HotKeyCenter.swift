@@ -20,27 +20,32 @@ public final class HotKeyCenter {
     }
 
     /// Makes `combo` the hot key, replacing any earlier one. Nil leaves no hot key.
-    /// A combo another app already registered is left unregistered.
-    public func register(_ combo: KeyCombo?) {
+    /// Returns false when `combo` couldn't be registered, for example because another app holds it;
+    /// there is then no hot key.
+    @discardableResult
+    public func register(_ combo: KeyCombo?) -> Bool {
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
         }
-        guard let combo else { return }
-        installHandlerIfNeeded()
+        guard let combo else { return true }
+        guard installHandlerIfNeeded() else { return false }
         var ref: EventHotKeyRef?
         let status = RegisterEventHotKey(
             combo.keyCode, combo.carbonModifiers, Self.hotKeyID, GetEventDispatcherTarget(), 0, &ref
         )
-        if status == noErr { hotKeyRef = ref }
+        guard status == noErr else { return false }
+        hotKeyRef = ref
+        return true
     }
 
-    private func installHandlerIfNeeded() {
-        guard handlerRef == nil else { return }
+    private func installHandlerIfNeeded() -> Bool {
+        guard handlerRef == nil else { return true }
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(
+        let status = InstallEventHandler(
             GetEventDispatcherTarget(), hotKeyHandler, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), &handlerRef
         )
+        return status == noErr
     }
 
     nonisolated fileprivate static func isNewShelfHotKey(_ event: EventRef?) -> Bool {

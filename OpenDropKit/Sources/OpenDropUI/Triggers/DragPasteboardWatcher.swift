@@ -14,12 +14,17 @@ public final class DragPasteboardWatcher: DragPasteboardWatching {
     private let interval: TimeInterval
     private let onChange: () -> Void
     private let pasteboard = NSPasteboard(name: .drag)
-    private var timer: Timer?
+    // Only touched on the main actor, and in deinit once nothing else can reach the watcher.
+    nonisolated(unsafe) private var timer: Timer?
     private var lastChangeCount = 0
 
     public init(interval: TimeInterval = 0.05, onChange: @escaping () -> Void) {
         self.interval = interval
         self.onChange = onChange
+    }
+
+    deinit {
+        timer?.invalidate()
     }
 
     /// Notes the pasteboard's current state and starts polling it. Does nothing while already polling.

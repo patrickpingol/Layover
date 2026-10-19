@@ -18,7 +18,8 @@ public final class DragMonitor {
     private var trigger = ShakeTrigger(sensitivity: .off, ignoredBundleIDs: [])
     private var sensitivity = ShakeSensitivity.off
     private var isStarted = false
-    private var eventMonitor: Any?
+    // Only touched on the main actor, and in deinit once nothing else can reach the monitor.
+    nonisolated(unsafe) private var eventMonitor: Any?
     private var isDragging = false
     private var lastOwner: (time: Date, bundleID: String?)?
     private var preferenceSubscription: AnyCancellable?
@@ -50,6 +51,10 @@ public final class DragMonitor {
             .sink { [weak self] sensitivity, ignoredBundleIDs in
                 self?.rebuildTrigger(sensitivity: sensitivity, ignoredBundleIDs: Set(ignoredBundleIDs))
             }
+    }
+
+    deinit {
+        if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
     }
 
     /// Starts watching drags, unless Shake is off; it starts by itself when Shake is turned back on.

@@ -54,10 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferences.hasCheckedHotKeyConflict = true
         }
         preferences.$newShelfHotKey
-            .sink { hotKey in
-                hotKeyCenter.register(hotKey)
-                statusMenu.setNewShelfHotKey(hotKey)
-            }
+            // The menu shows the hot key only while it is actually registered.
+            .sink { statusMenu.setNewShelfHotKey(hotKeyCenter.register($0) ? $0 : nil) }
             .store(in: &subscriptions)
 
         coordinator.restorePinnedShelves()
