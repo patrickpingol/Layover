@@ -18,8 +18,8 @@ public struct DragSample: Sendable {
     }
 }
 
-/// Decides when a drag should open a Shelf: a Shake was recognized and the drag
-/// pasteboard changed during the same drag, in either order. Fires at most once
+/// Decides when a drag should open a Shelf: a Shake was recognized and the drag was
+/// seen carrying content during the same drag, in either order. Fires at most once
 /// per drag, never over an Ignored App, and never for a drag that started over a Shelf.
 public struct ShakeTrigger: Sendable {
     private let ignoredBundleIDs: Set<String>
@@ -28,7 +28,7 @@ public struct ShakeTrigger: Sendable {
     private var isDragging = false
     private var isSuppressed = false
     private var hasFired = false
-    private var pasteboardChanged = false
+    private var contentDetected = false
     private var lastSample: DragSample?
 
     public init(sensitivity: ShakeSensitivity, ignoredBundleIDs: Set<String>) {
@@ -43,7 +43,7 @@ public struct ShakeTrigger: Sendable {
             isDragging = true
             isSuppressed = sample.isOverShelf
             hasFired = false
-            pasteboardChanged = false
+            contentDetected = false
             detector.reset()
         }
         lastSample = sample
@@ -56,10 +56,11 @@ public struct ShakeTrigger: Sendable {
         return firePointIfReady()
     }
 
-    /// Returns the last drag location to open a Shelf at, or nil.
-    public mutating func dragPasteboardChanged() -> CGPoint? {
+    /// The drag carries content: the drag pasteboard changed or a drag image is on screen. Returns the
+    /// last drag location to open a Shelf at, or nil.
+    public mutating func contentDragDetected() -> CGPoint? {
         guard isDragging else { return nil }
-        pasteboardChanged = true
+        contentDetected = true
         return firePointIfReady()
     }
 
@@ -70,7 +71,7 @@ public struct ShakeTrigger: Sendable {
     }
 
     private mutating func firePointIfReady() -> CGPoint? {
-        guard !isSuppressed, !hasFired, pasteboardChanged,
+        guard !isSuppressed, !hasFired, contentDetected,
               detector?.isRecognized == true,
               let sample = lastSample,
               !isIgnored(sample.ownerBundleID)

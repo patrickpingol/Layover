@@ -5,7 +5,7 @@ import QuickLookThumbnailing
 /// Thumbnails for Items: the workspace icon right away, a Quick Look thumbnail once it's ready.
 @MainActor
 final class ItemThumbnailProvider {
-    static let side: CGFloat = 64
+    static let side: CGFloat = 80
 
     private let ownedFiles: OwnedFileStore
     private let volumes: MountedVolumes

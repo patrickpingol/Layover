@@ -21,7 +21,8 @@ private final class Harness {
     let watcher = FakeWatcher()
     var shelfWindowNumbers: Set<Int> = []
     var owner: String?
-    var ownerLookups = 0
+    var showsDragImage = false
+    var windowLookups = 0
     var shakes: [CGPoint] = []
     private(set) var monitor: DragMonitor!
     private var time = Date(timeIntervalSince1970: 0)
@@ -31,9 +32,9 @@ private final class Harness {
         monitor = DragMonitor(
             preferences: preferences,
             isShelfWindow: { [unowned self] in self.shelfWindowNumbers.contains($0) },
-            ownerBundleID: { [unowned self] _ in
-                self.ownerLookups += 1
-                return self.owner
+            windowsAt: { [unowned self] _ in
+                self.windowLookups += 1
+                return WindowsAtPoint(ownerBundleID: self.owner, showsDragImage: self.showsDragImage)
             },
             makeWatcher: { [unowned self] onChange in
                 self.watcher.onChange = onChange
@@ -201,14 +202,44 @@ private final class Harness {
     #expect(harness.shakes.count == 1)
 }
 
-@Test @MainActor func theWindowOwnerIsLookedUpAtMostOncePer100Milliseconds() {
+@Test @MainActor func aShakeWithADragImageOnScreenOpensAShelfWithoutAPasteboardChange() {
+    // A file dragged out of a Dock stack shows a drag image but leaves the drag pasteboard untouched.
+    let harness = Harness()
+    harness.showsDragImage = true
+
+    harness.shake()
+
+    #expect(harness.shakes.count == 1)
+}
+
+@Test @MainActor func aShakeWithoutADragImageOrPasteboardChangeOpensNothing() {
+    // Moving a window or selecting text shows no drag image.
+    let harness = Harness()
+
+    harness.shake()
+
+    #expect(harness.shakes.isEmpty)
+}
+
+@Test @MainActor func aDragImageOverAnIgnoredAppOpensNothing() {
+    let harness = Harness()
+    harness.owner = "com.apple.finder"
+    harness.preferences.ignoredBundleIDs = ["com.apple.finder"]
+    harness.showsDragImage = true
+
+    harness.shake()
+
+    #expect(harness.shakes.isEmpty)
+}
+
+@Test @MainActor func theWindowsAreLookedUpAtMostOncePer100Milliseconds() {
     let harness = Harness()
 
     harness.drag(x: 0)
     harness.drag(x: 5, dt: 0.05)
     harness.drag(x: 10, dt: 0.04)
-    #expect(harness.ownerLookups == 1)
+    #expect(harness.windowLookups == 1)
 
     harness.drag(x: 15, dt: 0.02)
-    #expect(harness.ownerLookups == 2)
+    #expect(harness.windowLookups == 2)
 }

@@ -57,3 +57,24 @@ private func window(pid: Int32, layer: Int, bounds: CGRect) -> [String: Any] {
     // Over a Shelf (layer 3), the Desktop behind it is the owner, never the Shelf.
     #expect(WindowOwnerLookup.ownerPID(at: CGPoint(x: 10, y: 10), in: windows) == 9)
 }
+
+@Test func aWindowAtTheDraggingLevelIsADragImage() {
+    let windows = [
+        window(pid: 1, layer: 25, bounds: CGRect(x: 0, y: 0, width: 2000, height: 30)),
+        window(pid: 2, layer: 0, bounds: CGRect(x: 500, y: 500, width: 100, height: 100)),
+    ]
+    let dragImage = window(pid: 3, layer: WindowOwnerLookup.dragImageLayer, bounds: CGRect(x: 520, y: 520, width: 64, height: 64))
+
+    #expect(!WindowOwnerLookup.showsDragImage(in: windows))
+    #expect(WindowOwnerLookup.showsDragImage(in: [dragImage] + windows))
+}
+
+@Test func aDragImageNeverOwnsThePointUnderIt() {
+    let dragImageLayer = WindowOwnerLookup.dragImageLayer
+    let windows = [
+        window(pid: 3, layer: dragImageLayer, bounds: CGRect(x: 520, y: 520, width: 64, height: 64)),
+        window(pid: 2, layer: 0, bounds: CGRect(x: 500, y: 500, width: 100, height: 100)),
+    ]
+
+    #expect(WindowOwnerLookup.ownerPID(at: CGPoint(x: 550, y: 550), in: windows) == 2)
+}

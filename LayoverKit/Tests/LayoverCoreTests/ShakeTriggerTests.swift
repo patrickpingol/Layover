@@ -23,14 +23,14 @@ private func move(_ trigger: inout ShakeTrigger, _ samples: [DragSample]) -> [CG
     var t = trigger()
     let samples = shakeSamples()
     #expect(move(&t, samples).isEmpty)
-    #expect(t.dragPasteboardChanged() == samples.last!.location)
+    #expect(t.contentDragDetected() == samples.last!.location)
 }
 
 @Test func pasteboardThenShakeFiresOnRecognition() {
     var t = trigger()
     let samples = shakeSamples()
     #expect(t.dragMoved(samples[0]) == nil)
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
     let results = samples.dropFirst().map { t.dragMoved($0) }
     let fired = results.enumerated().filter { $0.element != nil }
     #expect(fired.count == 1)
@@ -48,36 +48,36 @@ private func move(_ trigger: inout ShakeTrigger, _ samples: [DragSample]) -> [CG
 @Test func firesOncePerDrag() {
     var t = trigger()
     #expect(move(&t, shakeSamples()).isEmpty)
-    #expect(t.dragPasteboardChanged() != nil)
+    #expect(t.contentDragDetected() != nil)
     #expect(move(&t, shakeSamples(at: Date(timeIntervalSince1970: 10))).isEmpty)
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
     #expect(move(&t, shakeSamples(at: Date(timeIntervalSince1970: 20))).isEmpty)
 }
 
 @Test func mouseUpStartsNewDrag() {
     var t = trigger()
     #expect(move(&t, shakeSamples()).isEmpty)
-    #expect(t.dragPasteboardChanged() != nil)
+    #expect(t.contentDragDetected() != nil)
     t.mouseUp()
     // A pasteboard change outside a drag doesn't count towards the next one.
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
     let second = shakeSamples(at: Date(timeIntervalSince1970: 10))
     #expect(move(&t, second).isEmpty)
-    #expect(t.dragPasteboardChanged() == second.last!.location)
+    #expect(t.contentDragDetected() == second.last!.location)
 }
 
 @Test func newDragForgetsPreviousPasteboardChangeAndShake() {
     var t = trigger()
     let first = shakeSamples()
     #expect(move(&t, first).isEmpty)
-    #expect(t.dragPasteboardChanged() != nil)
+    #expect(t.contentDragDetected() != nil)
     t.mouseUp()
     // Second drag with no shake: neither the old recognition nor the old pasteboard change carries over.
     let calm = (0..<10).map {
         DragSample(location: CGPoint(x: Double($0), y: 0), time: Date(timeIntervalSince1970: 10 + Double($0) * 0.01), isOverShelf: false, ownerBundleID: nil)
     }
     #expect(move(&t, calm).isEmpty)
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
 }
 
 @Test func dragStartedOverShelfSuppressed() {
@@ -85,16 +85,16 @@ private func move(_ trigger: inout ShakeTrigger, _ samples: [DragSample]) -> [CG
     var samples = shakeSamples()
     samples[0].isOverShelf = true
     #expect(t.dragMoved(samples[0]) == nil)
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
     #expect(move(&t, Array(samples.dropFirst())).isEmpty)
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
 }
 
 @Test func ignoredAppSuppressesUntilLeavingIt() {
     var t = trigger(ignored: ["com.apple.dt.Xcode"])
     let over = shakeSamples(owner: "com.apple.dt.Xcode")
     #expect(move(&t, over).isEmpty)
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
     let after = DragSample(location: CGPoint(x: 500, y: 100), time: Date(timeIntervalSince1970: 1), isOverShelf: false, ownerBundleID: nil)
     #expect(t.dragMoved(after) == after.location)
 }
@@ -102,5 +102,5 @@ private func move(_ trigger: inout ShakeTrigger, _ samples: [DragSample]) -> [CG
 @Test func offNeverFires() {
     var t = trigger(.off)
     #expect(move(&t, shakeSamples()).isEmpty)
-    #expect(t.dragPasteboardChanged() == nil)
+    #expect(t.contentDragDetected() == nil)
 }

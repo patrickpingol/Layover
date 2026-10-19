@@ -29,12 +29,12 @@ In the container paths below, `<bundle id>` is `dev.mauipingol.Layover`. `defaul
 - [ ] Open a Shelf on a secondary display, including one placed left of or above the main display (negative coordinates), and at each screen corner. Expected: the Shelf lands fully on that screen.
 - [ ] Click ✕. Expected: the Shelf closes; an empty Shelf does not appear in Recent Shelves.
 - [ ] Pin a Shelf, quit, relaunch. Expected: it reappears in the same place with the pin filled. Unpin, quit, relaunch: it does not come back pinned, and it appears under Recent Shelves if it has Items.
-- [ ] Drag the Shelf by its background or the stack, pin it, relaunch. Expected: it moves with the drag and returns at its new position.
+- [ ] Drag the Shelf by its background, pin it, relaunch. Expected: it moves with the drag and returns at its new position.
 - [ ] Switch apps, change Spaces, and open a full-screen app. Expected: the Shelf floats above other apps, stays visible after switching apps, and appears on all Spaces and over full-screen apps.
 - [ ] Click the Shelf. Expected: Layover does not activate; the frontmost app's menu bar stays.
 - [ ] Hover the controls and inspect them with VoiceOver. Expected: tooltips and labels read Close Shelf, Pin Shelf / Unpin Shelf, Expand / Collapse.
 - [ ] Add several Items. Expected: the compact stack shows up to 3 thumbnails, newest on top.
-- [ ] Click the stack, or the expand button, then collapse. Expected: it switches to the 4-column grid and back; the grid scrolls past 480 pt; expanding near a screen edge keeps the Shelf on screen.
+- [ ] Click the stack, or the expand button, then collapse. Expected: it switches to the 4-column grid and back; the grid scrolls past 560 pt; expanding near a screen edge keeps the Shelf on screen.
 - [ ] Reopen a Recent Shelf from the menu. Expected: it reappears where it was last shown.
 - [ ] Check both light and dark appearance. Expected: the HUD background and text are legible.
 
@@ -70,8 +70,9 @@ Record what Finder reports for each of these.
 - [ ] With an Unavailable Item on the Shelf (eject a disk, or move and trash an original), drag the Handle. Expected: the Unavailable Item is left out of the drag; if all are unavailable, no drag starts.
 - [ ] Turn "Close Shelf when emptied" off and do a moved drag. Expected: an empty open Shelf remains.
 - [ ] Move the last Item out. Expected: the Shelf closes shortly after the drop with no crash or flicker.
-- [ ] Look at the drag image. Expected: thumbnails fanned for the Handle, cell snapshots for the grid.
-- [ ] Drag from the Handle, and drag a grid Item. Expected: the window does not move.
+- [ ] Look at the drag image. Expected: thumbnails fanned for the stack and the Handle, cell snapshots for the grid.
+- [ ] Drag from the stack, from the Handle, and drag a grid Item. Expected: the window does not move.
+- [ ] Drop a file on a Shelf, then, without clicking the Shelf first, drag the stack (and in another round the Handle, and a grid Item) to a Finder folder. Expected: the drag starts on the first try.
 - [ ] Move an Owned File into a Finder folder that holds a same-name file, wait a few seconds, choose Stop. Expected: the Owned File still exists in the container (`~/Library/Containers/<bundle id>/Data/Library/Application Support/.../<uuid>/`).
 
 ## Item actions
@@ -99,6 +100,7 @@ Record what Finder reports for each of these.
 ## Shake & hotkey
 
 - [ ] Shake while dragging a Finder file. Expected: a Shelf opens under the cursor, you can drop the file into it, and the drag is not interrupted.
+- [ ] Open a folder stack in the Dock (for example Downloads), drag a file out of it and shake. Expected: a Shelf opens under the cursor, as for a Finder file.
 - [ ] Shake while moving a window. Expected: nothing happens (Review Focus 4).
 - [ ] Shake while selecting text. Expected: nothing happens (Review Focus 4).
 - [ ] Shake while dragging an Item out of a Shelf. Expected: no new Shelf opens.

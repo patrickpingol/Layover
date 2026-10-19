@@ -34,7 +34,7 @@ Horizontal-only reversal counting (algorithm in the teardown §3.2). All levels:
 | High | 3 | 15 pt |
 | Highest | 2 | 10 pt |
 
-A Shake opens a Shelf only if the drag pasteboard changed during the same drag (real content is being dragged), in either order. It doesn't fire if the drag started on a Shelf or the window under the cursor belongs to an Ignored App. It fires at most once per drag. A Shake always opens a **new** Shelf.
+A Shake opens a Shelf only if the same drag is seen carrying real content, in either order: the drag pasteboard changed, or a drag image is on screen (a Dock stack drag shows one but leaves the drag pasteboard untouched). It doesn't fire if the drag started on a Shelf or the window under the cursor belongs to an Ignored App. It fires at most once per drag. A Shake always opens a **new** Shelf.
 
 ## Shelves and Items
 
@@ -43,7 +43,7 @@ A Shake opens a Shelf only if the drag pasteboard changed during the same drag (
 - Every new Shelf opens next to the cursor, kept fully on the cursor's screen. There's no placement setting.
 - Look: a compact stack (thumbnails, Item count, Handle) that expands into an icon grid on click. No list view.
 - Dropping a file already on the Shelf (same file on disk, not just the same path) is ignored, and the existing Item bounces.
-- Dragging the Handle drags all Items. Dragging an Item drags the selection, or just that Item.
+- Dragging the compact stack or the Handle drags all Items; a click on the stack expands it. Dragging an Item in the grid drags the selection, or just that Item. Both work on the first click, even when the Shelf is not focused.
 - Drag-out moves by default; holding ⌥ copies. Items leave the Shelf only when the destination performed a move.
 - "Close Shelf when emptied" (default **on**): a Shelf closes once a move empties it. A copy never closes it.
 - Renamed or moved originals are followed. A deleted original removes its Item and shows a notice: "'<name>' was removed from disk." An original on an ejected disk leaves an Unavailable Item (greyed).

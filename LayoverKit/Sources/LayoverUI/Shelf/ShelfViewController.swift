@@ -74,9 +74,9 @@ final class ShelfViewController: NSViewController {
             let menu = actions.menu(for: shelf.items, anchor: button)
             menu.popUp(positioning: nil, at: CGPoint(x: 0, y: button.bounds.height), in: button)
         }
-        compactView.onHandleDrag = { [weak self] event, handle in
+        compactView.onDragAllItems = { [weak self] event, view in
             guard let self else { return }
-            dragSource.beginDrag(of: shelf.items, from: handle, with: event)
+            dragSource.beginDrag(of: shelf.items, from: view, with: event)
         }
 
         let trailingButtons = NSStackView(views: [pinButton, expandButton])

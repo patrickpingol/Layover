@@ -7,13 +7,13 @@ import LayoverCore
 /// with the selection Space shows Quick Look, ⌘C copies and ⌫ removes from the Shelf.
 @MainActor
 final class ShelfGridViewController: NSViewController, NSCollectionViewDataSource, NSCollectionViewDelegate {
-    static let width: CGFloat = 420
-    static let maxHeight: CGFloat = 480
+    static let width: CGFloat = 480
+    static let maxHeight: CGFloat = 560
 
     private static let columns = 4
     private static let inset: CGFloat = 10
     private static let spacing: CGFloat = 8
-    private static let itemHeight: CGFloat = 96
+    private static let itemHeight: CGFloat = 112
 
     private let thumbnails: ItemThumbnailProvider
     private let dragSource: ShelfDragSource

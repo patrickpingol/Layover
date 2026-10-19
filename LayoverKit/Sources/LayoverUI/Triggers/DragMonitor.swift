@@ -3,14 +3,15 @@ import Combine
 import LayoverCore
 
 /// Watches mouse drags anywhere on screen and calls `onShake` when a drag is shaken while
-/// carrying content, as `ShakeTrigger` decides. Global mouse monitors need no permission.
+/// carrying content, as `ShakeTrigger` decides. A drag carries content once the drag pasteboard
+/// changes or a drag image is on screen. Global mouse monitors need no permission.
 @MainActor
 public final class DragMonitor {
-    /// The window owner is looked up at most this often during a drag; samples in between reuse it.
-    private static let ownerLookupInterval: TimeInterval = 0.1
+    /// The windows are looked up at most this often during a drag; samples in between reuse them.
+    private static let windowLookupInterval: TimeInterval = 0.1
 
     private let isShelfWindow: (Int) -> Bool
-    private let ownerBundleID: (CGPoint) -> String?
+    private let windowsAt: (CGPoint) -> WindowsAtPoint
     private let onShake: (CGPoint) -> Void
     private let makeWatcher: (@escaping () -> Void) -> any DragPasteboardWatching
     private lazy var watcher = makeWatcher { [weak self] in self?.handlePasteboardChange() }
@@ -21,14 +22,14 @@ public final class DragMonitor {
     // Only touched on the main actor, and in deinit once nothing else can reach the monitor.
     nonisolated(unsafe) private var eventMonitor: Any?
     private var isDragging = false
-    private var lastOwner: (time: Date, bundleID: String?)?
+    private var lastWindows: (time: Date, windows: WindowsAtPoint)?
     private var preferenceSubscription: AnyCancellable?
 
     public convenience init(preferences: Preferences, isShelfWindow: @escaping (Int) -> Bool, onShake: @escaping (CGPoint) -> Void) {
         self.init(
             preferences: preferences,
             isShelfWindow: isShelfWindow,
-            ownerBundleID: WindowOwnerLookup.bundleID(at:),
+            windowsAt: WindowOwnerLookup.windows(at:),
             makeWatcher: { DragPasteboardWatcher(onChange: $0) },
             onShake: onShake
         )
@@ -37,12 +38,12 @@ public final class DragMonitor {
     init(
         preferences: Preferences,
         isShelfWindow: @escaping (Int) -> Bool,
-        ownerBundleID: @escaping (CGPoint) -> String?,
+        windowsAt: @escaping (CGPoint) -> WindowsAtPoint,
         makeWatcher: @escaping (@escaping () -> Void) -> any DragPasteboardWatching,
         onShake: @escaping (CGPoint) -> Void
     ) {
         self.isShelfWindow = isShelfWindow
-        self.ownerBundleID = ownerBundleID
+        self.windowsAt = windowsAt
         self.makeWatcher = makeWatcher
         self.onShake = onShake
         // @Published emits before the property changes, so the new values come from the publishers.
@@ -79,24 +80,29 @@ public final class DragMonitor {
         }
         // A drag that starts on a Shelf never triggers a Shake because global monitors never receive this app's
         // own events. `isOverShelf` is a seam for tests and a belt-and-braces check, not the guarantee.
+        let windows = windows(at: location, time: time)
         let sample = DragSample(
             location: location,
             time: time,
             isOverShelf: isShelfWindow(windowNumber),
-            ownerBundleID: owner(at: location, time: time)
+            ownerBundleID: windows.ownerBundleID
         )
-        if let point = trigger.dragMoved(sample) { onShake(point) }
+        if let point = trigger.dragMoved(sample) {
+            onShake(point)
+        } else if windows.showsDragImage, let point = trigger.contentDragDetected() {
+            onShake(point)
+        }
     }
 
     func handleMouseUp() {
         isDragging = false
-        lastOwner = nil
+        lastWindows = nil
         watcher.end()
         trigger.mouseUp()
     }
 
     func handlePasteboardChange() {
-        if let point = trigger.dragPasteboardChanged() { onShake(point) }
+        if let point = trigger.contentDragDetected() { onShake(point) }
     }
 
     // MARK: Private
@@ -130,12 +136,12 @@ public final class DragMonitor {
         }
     }
 
-    private func owner(at location: CGPoint, time: Date) -> String? {
-        if let lastOwner, time.timeIntervalSince(lastOwner.time) < Self.ownerLookupInterval {
-            return lastOwner.bundleID
+    private func windows(at location: CGPoint, time: Date) -> WindowsAtPoint {
+        if let lastWindows, time.timeIntervalSince(lastWindows.time) < Self.windowLookupInterval {
+            return lastWindows.windows
         }
-        let bundleID = ownerBundleID(location)
-        lastOwner = (time, bundleID)
-        return bundleID
+        let windows = windowsAt(location)
+        lastWindows = (time, windows)
+        return windows
     }
 }

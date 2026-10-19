@@ -2,10 +2,10 @@ import AppKit
 import LayoverCore
 
 /// A Shelf's compact look: a stack of up to three thumbnails, the Item count and the Handle,
-/// or "Drop files here" when the Shelf is empty.
+/// or "Drop files here" when the Shelf is empty. Dragging the stack or the Handle drags all Items.
 @MainActor
 final class ShelfCompactView: NSView {
-    static let size = CGSize(width: 132, height: 152)
+    static let size = CGSize(width: 160, height: 184)
 
     /// Called when the stack is clicked (not dragged).
     var onStackClick: () -> Void = {}
@@ -13,11 +13,8 @@ final class ShelfCompactView: NSView {
     /// Called when the "⋯" button is clicked, with the button to show the Item actions menu from.
     var onMoreActions: (NSButton) -> Void = { _ in }
 
-    /// Called when the Handle is dragged, with the mouse-down event and the Handle to drag from.
-    var onHandleDrag: (NSEvent, NSView) -> Void {
-        get { handle.onDrag }
-        set { handle.onDrag = newValue }
-    }
+    /// Called when the stack or the Handle is dragged, with the mouse-down event and the view to drag from.
+    var onDragAllItems: (NSEvent, NSView) -> Void = { _, _ in }
 
     private let thumbnails: ItemThumbnailProvider
     private let stack = ThumbnailStackView()
@@ -30,6 +27,8 @@ final class ShelfCompactView: NSView {
         self.thumbnails = thumbnails
         super.init(frame: .zero)
         stack.onClick = { [weak self] in self?.onStackClick() }
+        stack.onDrag = { [weak self] event, view in self?.onDragAllItems(event, view) }
+        handle.onDrag = { [weak self] event, view in self?.onDragAllItems(event, view) }
 
         countLabel.font = .systemFont(ofSize: 11, weight: .medium)
         countLabel.textColor = .secondaryLabelColor
@@ -57,8 +56,8 @@ final class ShelfCompactView: NSView {
         NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: centerXAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor),
-            stack.widthAnchor.constraint(equalToConstant: 100),
-            stack.heightAnchor.constraint(equalToConstant: 80),
+            stack.widthAnchor.constraint(equalToConstant: 120),
+            stack.heightAnchor.constraint(equalToConstant: 96),
 
             countLabel.topAnchor.constraint(equalTo: stack.bottomAnchor, constant: 2),
             countLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
@@ -106,14 +105,15 @@ final class ShelfCompactView: NSView {
 }
 
 /// Up to three thumbnails fanned out, the newest Item on top. A click toggles the Shelf's look;
-/// a drag still moves the window.
+/// a drag drags all Items out.
 @MainActor
 private final class ThumbnailStackView: NSView {
     private static let maxCount = 3
     /// Horizontal offset and rotation (degrees) for the back, middle and front thumbnail.
-    private static let fan: [(dx: CGFloat, angle: CGFloat)] = [(-12, 8), (12, -8), (0, 0)]
+    private static let fan: [(dx: CGFloat, angle: CGFloat)] = [(-14, 8), (14, -8), (0, 0)]
 
     var onClick: () -> Void = {}
+    var onDrag: (NSEvent, NSView) -> Void = { _, _ in }
 
     private var views: [ItemThumbnailView] = []
     private var shownIDs: [Item.ID] = []
@@ -170,6 +170,9 @@ private final class ThumbnailStackView: NSView {
 
     override var mouseDownCanMoveWindow: Bool { false }
 
+    // A Shelf never activates Layover, so without this the first click on it only makes it key.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func mouseDown(with event: NSEvent) {
         mouseDownEvent = event
     }
@@ -177,7 +180,7 @@ private final class ThumbnailStackView: NSView {
     override func mouseDragged(with event: NSEvent) {
         guard let mouseDownEvent else { return }
         self.mouseDownEvent = nil
-        window?.performDrag(with: mouseDownEvent)
+        onDrag(mouseDownEvent, self)
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -199,6 +202,8 @@ private final class HandleView: NSView {
     private var mouseDownEvent: NSEvent?
 
     override var mouseDownCanMoveWindow: Bool { false }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
         let pill = CGRect(
