@@ -4,7 +4,7 @@ Layover is a macOS menu-bar utility for temporarily collecting dragged content. 
 
 ## Install
 
-Download `Layover-<version>.zip` from the [latest release](https://github.com/patrickpingol/Layover/releases/latest), unzip it and move `Layover.app` to `/Applications`. Layover is signed with its own certificate rather than an Apple Developer ID, so on first launch macOS says it can't verify the developer. Open System Settings → Privacy & Security and click **Open Anyway** next to the Layover message. Layover updates itself after that, through Check for Updates… in its menu.
+Download `Layover-<version>.dmg` from the [latest release](https://github.com/patrickpingol/Layover/releases/latest), open it, drag `Layover.app` onto the Applications shortcut, then eject the disk image. Layover is signed with its own certificate rather than an Apple Developer ID, so on first launch macOS says it can't verify the developer. Open System Settings → Privacy & Security and click **Open Anyway** next to the Layover message. Layover updates itself after that, through Check for Updates… in its menu.
 
 ## Requirements
 

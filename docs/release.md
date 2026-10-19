@@ -28,7 +28,7 @@ The certificate does not need to be trusted on the build machine: CI picks it by
 
 ### Feed hosting
 
-Each GitHub Release carries the archive and an `appcast.xml` listing every release. `SUFeedURL` is `https://github.com/patrickpingol/Layover/releases/latest/download/appcast.xml`, which GitHub redirects to the newest published (not draft or pre-release) release's copy. The repository must stay public: Sparkle cannot download assets that need a login.
+Each GitHub Release carries the disk image and an `appcast.xml` listing every release. `SUFeedURL` is `https://github.com/patrickpingol/Layover/releases/latest/download/appcast.xml`, which GitHub redirects to the newest published (not draft or pre-release) release's copy. The repository must stay public: Sparkle cannot download assets that need a login.
 
 ### GitHub secrets
 
@@ -63,8 +63,8 @@ Then add its secrets:
    - checks `SUPublicEDKey` is set and `SUFeedURL` points at this repository's releases;
    - runs the tests and builds the universal (arm64 and x86_64) Release app;
    - re-signs it with the certificate ([`scripts/sign-app.sh`](../scripts/sign-app.sh), innermost code first, as Sparkle documents) and checks the hardened runtime is on and `get-task-allow` is absent;
-   - zips it, adds it to the previous release's `appcast.xml` with `generate_appcast`, and fails if the update isn't signed with the key matching `SUPublicEDKey`;
-   - publishes the GitHub Release with the zip, `appcast.xml` and generated notes.
+   - puts it in a disk image next to a shortcut to Applications, signs the image, adds it to the previous release's `appcast.xml` with `generate_appcast`, and fails if the update isn't signed with the key matching `SUPublicEDKey`. Sparkle installs updates from the same disk image;
+   - publishes the GitHub Release with the disk image, `appcast.xml` and generated notes.
 4. Install the previous release, choose Check for Updates…, and confirm the update installs and relaunches.
 
 If the workflow fails before publishing, fix the cause, delete the tag (`git push origin :refs/tags/v0.2.0` and `git tag -d v0.2.0`) and tag again.
@@ -75,6 +75,6 @@ With an Apple Developer Program membership, releases can be notarized so Gatekee
 
 1. Remove `com.apple.security.cs.disable-library-validation` from `App/Resources/Layover.entitlements`. A Developer ID gives Layover and the re-signed Sparkle the same Team ID. Local ad-hoc builds then need their own entitlements with the exemption again.
 2. Import the Developer ID Application certificate instead of the self-signed one, and sign with `--timestamp` (in `scripts/sign-app.sh`).
-3. Add notarization after signing: `xcrun notarytool submit <zip> --key <AuthKey.p8> --key-id <id> --issuer <issuer> --wait`, then `xcrun stapler staple` the app and zip it again.
+3. Add notarization after the disk image is signed: `xcrun notarytool submit <dmg> --key <AuthKey.p8> --key-id <id> --issuer <issuer> --wait`, then `xcrun stapler staple <dmg>`.
 
 The switch changes Layover's code identity once. Sparkle accepts it because the update is still signed with the same EdDSA key, but macOS may ask users once whether Layover may access its own data.

@@ -89,8 +89,15 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p "$UPDATES"
-          ditto -c -k --keepParent "$APP" "$UPDATES/Layover-$VERSION.zip"
+          # The disk image opens to the app and a shortcut to Applications to drag it onto. Sparkle
+          # installs updates from the same image.
+          staging="$RUNNER_TEMP/dmg"
+          mkdir -p "$staging" "$UPDATES"
+          ditto "$APP" "$staging/Layover.app"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create -volname Layover -srcfolder "$staging" -fs HFS+ -format UDZO -ov "$UPDATES/Layover-$VERSION.dmg"
+          codesign --force --timestamp=none --sign "$SIGNING_IDENTITY" "$UPDATES/Layover-$VERSION.dmg"
+          codesign --verify --strict "$UPDATES/Layover-$VERSION.dmg"
           # Start from the latest release's feed so earlier versions stay listed.
           gh release download --pattern appcast.xml --dir "$UPDATES" || echo "No earlier appcast.xml"
 
@@ -102,11 +109,11 @@ jobs:
             --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/" "$UPDATES" 2>&1 | tee "$RUNNER_TEMP/appcast.log"
           # A key that doesn't match SUPublicEDKey is only a warning, and the update would be published unsigned.
           if grep -q 'does not match' "$RUNNER_TEMP/appcast.log"; then exit 1; fi
-          grep "Layover-$VERSION.zip" "$UPDATES/appcast.xml" | grep -q 'sparkle:edSignature=' || { echo "The update is not signed"; exit 1; }
+          grep "Layover-$VERSION.dmg" "$UPDATES/appcast.xml" | grep -q 'sparkle:edSignature=' || { echo "The update is not signed"; exit 1; }
 
       - name: Publish
         run: |
-          gh release create "$TAG" "$UPDATES/Layover-$VERSION.zip" "$UPDATES/appcast.xml" \
+          gh release create "$TAG" "$UPDATES/Layover-$VERSION.dmg" "$UPDATES/appcast.xml" \
             --verify-tag --title "Layover $VERSION" --generate-notes
 
       - name: Remove the keychain
