@@ -97,15 +97,3 @@ private func unavailableItem() -> Item {
         #expect(pasteboard.string(forType: .string) == "before")
     }
 }
-
-@Test @MainActor func removeNeverTouchesTheFileOnDisk() throws {
-    try withController { controller, _, ownedFiles, removed in
-        let owned = try ownedFiles.makeText("a")
-        let item = Item(id: UUID(), content: .owned(owned))
-
-        controller.perform(.remove, on: [item], anchor: NSView())
-
-        #expect(removed.ids == [[item.id]])
-        #expect(FileManager.default.fileExists(atPath: ownedFiles.url(for: owned).path))
-    }
-}

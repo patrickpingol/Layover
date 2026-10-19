@@ -163,9 +163,6 @@ private final class ShelfCollectionView: NSCollectionView {
     /// Called for Space (Quick Look), ⌘C (Copy) and ⌫ (Remove from Shelf); returns whether it acted.
     var onKeyAction: (ItemAction) -> Bool = { _ in false }
 
-    private static let spaceKeyCode: UInt16 = 49
-    private static let deleteKeyCodes: Set<UInt16> = [51, 117]
-
     override func menu(for event: NSEvent) -> NSMenu? {
         onContextMenu(event)
     }
@@ -173,32 +170,22 @@ private final class ShelfCollectionView: NSCollectionView {
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         super.mouseDown(with: event)
-        guard event.clickCount == 2, Self.modifiers(of: event).isEmpty,
+        guard event.clickCount == 2, ItemShortcut.relevantModifiers(of: event.modifierFlags).isEmpty,
               let indexPath = indexPathForItem(at: convert(event.locationInWindow, from: nil))
         else { return }
         onDoubleClick(indexPath)
     }
 
     override func keyDown(with event: NSEvent) {
-        guard Self.modifiers(of: event).isEmpty else { return super.keyDown(with: event) }
-        let action: ItemAction? = switch event.keyCode {
-        case Self.spaceKeyCode: .quickLook
-        case let code where Self.deleteKeyCodes.contains(code): .remove
-        default: nil
-        }
-        guard let action, onKeyAction(action) else { return super.keyDown(with: event) }
+        let action = ItemShortcut.action(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers, modifiers: event.modifierFlags)
+        guard let action, action != .copy, onKeyAction(action) else { return super.keyDown(with: event) }
     }
 
     // OpenDrop has no Edit menu, so ⌘C reaches the grid as a key equivalent.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard !isHiddenOrHasHiddenAncestor, Self.modifiers(of: event) == .command,
-              event.charactersIgnoringModifiers == "c"
-        else { return super.performKeyEquivalent(with: event) }
+        let action = ItemShortcut.action(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers, modifiers: event.modifierFlags)
+        guard !isHiddenOrHasHiddenAncestor, action == .copy else { return super.performKeyEquivalent(with: event) }
         return onKeyAction(.copy)
-    }
-
-    private static func modifiers(of event: NSEvent) -> NSEvent.ModifierFlags {
-        event.modifierFlags.intersection(.deviceIndependentFlagsMask)
     }
 }
 

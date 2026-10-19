@@ -1,4 +1,5 @@
 import AppKit
+import QuickLookUI
 
 /// The floating, non-activating window a Shelf lives in: a rounded HUD background that hosts the
 /// Shelf's view and stays above other windows on every Space without activating OpenDrop.
@@ -45,6 +46,21 @@ final class ShelfPanel: NSPanel {
     // Borderless panels refuse key status by default; Item actions need keyboard input.
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    // The Quick Look panel takes its orders from the Shelf window that asked for it. AppKit calls
+    // these on the main thread, but declares them nonisolated.
+
+    override nonisolated func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        MainActor.assumeIsolated { QuickLookPresenter.shared.accepts(control: self) }
+    }
+
+    override nonisolated func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated { QuickLookPresenter.shared.begin(control: panel, for: self) }
+    }
+
+    override nonisolated func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated { QuickLookPresenter.shared.end(control: self) }
+    }
 
     /// Resizes the panel keeping its top-left corner in place, then keeps it fully on its screen.
     func resize(to size: CGSize) {

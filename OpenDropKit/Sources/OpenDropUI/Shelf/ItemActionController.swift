@@ -58,8 +58,7 @@ final class ItemActionController {
             }
             let item = NSMenuItem(title: entry.title, action: #selector(MenuInvocation.invoke), keyEquivalent: "")
             let invocation = MenuInvocation { [weak self, weak anchor] in
-                guard let self, let anchor else { return }
-                perform(action, on: items, anchor: anchor)
+                self?.perform(action, on: items, anchor: anchor)
             }
             // A menu item's target is weak; its represented object keeps the invocation alive.
             item.representedObject = invocation
@@ -70,7 +69,9 @@ final class ItemActionController {
         return menu
     }
 
-    func perform(_ action: ItemAction, on items: [Item], anchor: NSView) {
+    /// Performs `action` on `items`. Share and Quick Look need the `anchor` view they appear from, and do
+    /// nothing without it.
+    func perform(_ action: ItemAction, on items: [Item], anchor: NSView?) {
         if action == .remove {
             onRemove(Set(items.map(\.id)))
             return
@@ -90,8 +91,10 @@ final class ItemActionController {
             actions.copy(urls)
             stopAccess()
         case .quickLook:
-            actions.quickLook(urls, onEnd: stopAccess)
+            guard let anchor else { return stopAccess() }
+            actions.quickLook(urls, from: anchor, onEnd: stopAccess)
         case .share:
+            guard let anchor else { return stopAccess() }
             actions.share(urls, from: anchor, onEnd: stopAccess)
         case .remove:
             break
@@ -99,7 +102,7 @@ final class ItemActionController {
     }
 
     /// Space: closes the Quick Look panel when it is up, and otherwise shows `items` in it.
-    func toggleQuickLook(for items: [Item], anchor: NSView) {
+    func toggleQuickLook(for items: [Item], anchor: NSView?) {
         if QuickLookPresenter.shared.isShowing {
             QuickLookPresenter.shared.hide()
         } else {

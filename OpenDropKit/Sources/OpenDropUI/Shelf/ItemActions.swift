@@ -15,9 +15,10 @@ struct ItemActions {
         NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
 
-    /// Shows `urls` in the Quick Look panel. `onEnd` runs once the panel stops showing them.
-    func quickLook(_ urls: [URL], onEnd: @escaping () -> Void = {}) {
-        QuickLookPresenter.shared.show(urls, onEnd: onEnd)
+    /// Shows `urls` in the Quick Look panel, which takes its orders from the Shelf window `view` is in.
+    /// `onEnd` runs once the panel stops showing them.
+    func quickLook(_ urls: [URL], from view: NSView, onEnd: @escaping () -> Void = {}) {
+        QuickLookPresenter.shared.show(urls, from: view.window, onEnd: onEnd)
     }
 
     func copy(_ urls: [URL]) {
@@ -25,31 +26,71 @@ struct ItemActions {
         pasteboard.writeObjects(urls as [NSURL])
     }
 
-    /// Shows the sharing menu for `urls` below `view`. `onEnd` runs once the user has chosen a service
-    /// or dismissed the menu.
+    /// Shows the sharing menu for `urls` below `view`. `onEnd` runs once the chosen service is done with
+    /// the files, or the menu was dismissed.
     func share(_ urls: [URL], from view: NSView, onEnd: @escaping () -> Void = {}) {
-        let session = ShareSession(onEnd: onEnd)
-        let picker = NSSharingServicePicker(items: urls)
-        picker.delegate = session
-        picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+        ShareMenuDelegate(urls: urls, onEnd: onEnd).show(from: view)
     }
 }
 
-/// Keeps the sharing menu's delegate alive while the menu is up, and reports when it is done.
+/// Shows the sharing menu and keeps itself, the menu and the chosen service alive until the files are
+/// no longer needed: AppKit reports the choice before it performs the service, so the files must stay
+/// reachable until the service says it is done.
+///
+/// If neither the menu nor the service ever reports, it lets go after `timeout`.
 @MainActor
-private final class ShareSession: NSObject, @MainActor NSSharingServicePickerDelegate {
-    private var onEnd: (() -> Void)?
-    private var keepAlive: ShareSession?
+private final class ShareMenuDelegate: NSObject, @MainActor NSSharingServicePickerDelegate, @MainActor NSSharingServiceDelegate {
+    static let timeout: Duration = .seconds(600)
 
-    init(onEnd: @escaping () -> Void) {
+    private let picker: NSSharingServicePicker
+    private var onEnd: (() -> Void)?
+    private var keepAlive: ShareMenuDelegate?
+    private var timeoutTask: Task<Void, Never>?
+
+    init(urls: [URL], onEnd: @escaping () -> Void) {
+        picker = NSSharingServicePicker(items: urls)
         self.onEnd = onEnd
         super.init()
-        keepAlive = self
+        picker.delegate = self
     }
 
-    func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker, didChoose service: NSSharingService?) {
-        onEnd?()
+    func show(from view: NSView) {
+        keepAlive = self
+        timeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.timeout)
+            guard !Task.isCancelled else { return }
+            self?.finish()
+        }
+        picker.show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
+    }
+
+    private func finish() {
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        let finished = onEnd
         onEnd = nil
         keepAlive = nil
+        finished?()
+    }
+
+    // MARK: NSSharingServicePickerDelegate
+
+    func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker, didChoose service: NSSharingService?) {
+        // With a service chosen, its own delegate says when it is done.
+        if service == nil { finish() }
+    }
+
+    func sharingServicePicker(_ sharingServicePicker: NSSharingServicePicker, delegateFor sharingService: NSSharingService) -> (any NSSharingServiceDelegate)? {
+        self
+    }
+
+    // MARK: NSSharingServiceDelegate
+
+    func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) {
+        finish()
+    }
+
+    func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: any Error) {
+        finish()
     }
 }
