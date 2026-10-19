@@ -3,13 +3,6 @@ import Foundation
 import Testing
 @testable import OpenDropCore
 
-private func withTempDirectory<T>(_ body: (URL) throws -> T) throws -> T {
-    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
-    return try body(dir)
-}
-
 private func fileContent(_ url: URL) throws -> ItemContent {
     .file(try FileReference.make(for: url, securityScoped: false))
 }

@@ -1,0 +1,88 @@
+import Foundation
+
+/// Writes Owned Files to disk and deletes the ones no Shelf refers to any more.
+///
+/// Each Owned File lives alone in `<directory>/<id>/<filename>`, so a filename never collides
+/// and removing the `<id>` directory removes the whole file.
+public struct OwnedFileStore: Sendable {
+    private static let maxNameLength = 40
+
+    public let directory: URL
+
+    public init(directory: URL) {
+        self.directory = directory
+    }
+
+    public func url(for file: OwnedFile) -> URL {
+        directory
+            .appendingPathComponent(file.id.uuidString, isDirectory: true)
+            .appendingPathComponent(file.filename)
+    }
+
+    /// Text is named after its first non-empty line, or `Text` if it is blank.
+    public func makeText(_ text: String) throws -> OwnedFile {
+        let firstLine = text.split(whereSeparator: \.isNewline).lazy
+            .compactMap { Self.sanitized(String($0)) }
+            .first
+        return try write(Data(text.utf8), named: firstLine ?? "Text", extension: "txt", kind: .text)
+    }
+
+    /// A link is a `.webloc` named after its title, else its host, else `Link`.
+    public func makeLink(_ url: URL, title: String?) throws -> OwnedFile {
+        let name = title.flatMap(Self.sanitized) ?? url.host.flatMap(Self.sanitized) ?? "Link"
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["URL": url.absoluteString], format: .binary, options: 0
+        )
+        return try write(plist, named: name, extension: "webloc", kind: .link)
+    }
+
+    /// `pngData` is written as given; converting other image formats to PNG is the caller's job.
+    public func makeImage(pngData: Data, suggestedName: String?) throws -> OwnedFile {
+        let name = suggestedName.flatMap(Self.sanitized) ?? "Image"
+        return try write(pngData, named: name, extension: "png", kind: .image)
+    }
+
+    /// Deletes every Owned File whose id is not in `ids` and returns how many were deleted.
+    /// Entries that are not a directory named by a UUID are left alone.
+    @discardableResult
+    public func removeUnreferenced(keeping ids: Set<UUID>) throws -> Int {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: directory.path) else { return 0 }
+        let entries = try fileManager.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: [.isDirectoryKey]
+        )
+        var removed = 0
+        for entry in entries {
+            guard let id = UUID(uuidString: entry.lastPathComponent),
+                  !ids.contains(id),
+                  (try entry.resourceValues(forKeys: [.isDirectoryKey])).isDirectory == true
+            else { continue }
+            try fileManager.removeItem(at: entry)
+            removed += 1
+        }
+        return removed
+    }
+
+    private func write(_ data: Data, named name: String, extension ext: String, kind: OwnedFile.Kind) throws -> OwnedFile {
+        let file = OwnedFile(id: UUID(), filename: "\(name).\(ext)", kind: kind)
+        let fileManager = FileManager.default
+        let folder = url(for: file).deletingLastPathComponent()
+        try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        do {
+            try data.write(to: url(for: file))
+        } catch {
+            try? fileManager.removeItem(at: folder)
+            throw error
+        }
+        return file
+    }
+
+    /// Replaces `/` and `:` with `-`, trims whitespace and caps the length.
+    /// Returns nil if nothing is left.
+    private static func sanitized(_ raw: String) -> String? {
+        let replaced = String(raw.map { $0 == "/" || $0 == ":" ? "-" : $0 })
+        let trimmed = String(replaced.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxNameLength))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
