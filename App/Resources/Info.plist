@@ -30,8 +30,10 @@
 	<true/>
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
-	<!-- Placeholder: replace with the hosted appcast URL. See docs/release.md. -->
+	<!-- Each GitHub Release carries the appcast; this URL redirects to the latest one. See docs/release.md. -->
 	<key>SUFeedURL</key>
-	<string>https://example.invalid/appcast.xml</string>
+	<string>https://github.com/patrickpingol/Layover/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>0JHGPsxj63+XduIbhZmFJZBYq+xp2X1cyQY+bZoxbcM=</string>
 </dict>
 </plist>

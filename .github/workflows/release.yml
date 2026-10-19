@@ -1,0 +1,115 @@
+# Builds, signs and publishes a release when a version tag (v1.2.3) is pushed. See docs/release.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+
+jobs:
+  release:
+    runs-on: macos-latest
+    environment: release
+    defaults:
+      run:
+        # An explicit bash adds pipefail, so a failing generate_appcast fails its step despite the tee.
+        shell: bash
+    env:
+      TAG: ${{ github.ref_name }}
+      APP: .build/xcode/Build/Products/Release/Layover.app
+      UPDATES: .build/updates
+      SPARKLE_BIN: .build/xcode/SourcePackages/artifacts/sparkle/Sparkle/bin
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The build number is the commit count, so it needs the whole history.
+          fetch-depth: 0
+
+      - name: Read the version
+        run: |
+          version=${TAG#v}
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "Tag $TAG is not v<major>.<minor>.<patch>"; exit 1; }
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "BUILD=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          xcodebuild -version
+
+      - name: Check the Sparkle settings
+        run: |
+          /usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' App/Resources/Info.plist
+          feed=$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' App/Resources/Info.plist)
+          [ "$feed" = "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml" ] || { echo "SUFeedURL is $feed"; exit 1; }
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Test
+        run: swift test --package-path LayoverKit
+
+      - name: Build
+        run: |
+          xcodegen generate
+          xcodebuild -project Layover.xcodeproj -scheme Layover -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath .build/xcode \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" build
+
+      - name: Import the signing certificate
+        env:
+          SIGNING_CERT_P12_BASE64: ${{ secrets.SIGNING_CERT_P12_BASE64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          password=$(uuidgen)
+          echo "$SIGNING_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$SIGNING_CERT_PASSWORD" -T /usr/bin/codesign -f pkcs12
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          # codesign only finds identities in keychains on the search list. A self-signed certificate is
+          # untrusted, so it is picked by its SHA-1 rather than from the valid identities.
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity=$(security find-identity -p codesigning "$keychain" | awk '$1 == "1)" { print $2; exit }')
+          [ -n "$identity" ] || { echo "No code-signing identity in the certificate"; exit 1; }
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Sign
+        run: |
+          scripts/sign-app.sh "$APP" "$SIGNING_IDENTITY"
+          codesign -dv "$APP" 2>&1 | grep -q 'flags=.*runtime' || { echo "Hardened runtime is off"; exit 1; }
+          if codesign -d --entitlements - "$APP" 2>&1 | grep -q get-task-allow; then echo "get-task-allow must not ship"; exit 1; fi
+          lipo "$APP/Contents/MacOS/Layover" -verify_arch arm64 x86_64
+
+      - name: Package
+        run: |
+          mkdir -p "$UPDATES"
+          ditto -c -k --keepParent "$APP" "$UPDATES/Layover-$VERSION.zip"
+          # Start from the latest release's feed so earlier versions stay listed.
+          gh release download --pattern appcast.xml --dir "$UPDATES" || echo "No earlier appcast.xml"
+
+      - name: Generate the appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | "$SPARKLE_BIN/generate_appcast" --ed-key-file - \
+            --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/" "$UPDATES" 2>&1 | tee "$RUNNER_TEMP/appcast.log"
+          # A key that doesn't match SUPublicEDKey is only a warning, and the update would be published unsigned.
+          if grep -q 'does not match' "$RUNNER_TEMP/appcast.log"; then exit 1; fi
+          grep "Layover-$VERSION.zip" "$UPDATES/appcast.xml" | grep -q 'sparkle:edSignature=' || { echo "The update is not signed"; exit 1; }
+
+      - name: Publish
+        run: |
+          gh release create "$TAG" "$UPDATES/Layover-$VERSION.zip" "$UPDATES/appcast.xml" \
+            --verify-tag --title "Layover $VERSION" --generate-notes
+
+      - name: Remove the keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN:-}" ]; then security delete-keychain "$KEYCHAIN"; fi

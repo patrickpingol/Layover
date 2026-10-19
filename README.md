@@ -2,6 +2,10 @@
 
 Layover is a macOS menu-bar utility for temporarily collecting dragged content. Shake while dragging, or press a hot key, and a floating Shelf appears at the cursor. Drop files, text, links and images onto it, then drag everything out again when you reach the destination. Files stay where they are and are referenced in place. Layover is sandboxed and asks for no Accessibility, Input Monitoring or Screen Recording permission.
 
+## Install
+
+Download `Layover-<version>.zip` from the [latest release](https://github.com/patrickpingol/Layover/releases/latest), unzip it and move `Layover.app` to `/Applications`. Layover is signed with its own certificate rather than an Apple Developer ID, so on first launch macOS says it can't verify the developer. Open System Settings → Privacy & Security and click **Open Anyway** next to the Layover message. Layover updates itself after that, through Check for Updates… in its menu.
+
 ## Requirements
 
 - macOS 14 or later
@@ -46,7 +50,7 @@ A `shelves.json.unreadable-<timestamp>` file next to `shelves.json` means Layove
 - [docs/adr](docs/adr): architecture decision records
 - [docs/research](docs/research/dropover-teardown.md): teardown of a comparable app
 - [docs/qa](docs/qa/v1-checklist.md): the v1 manual QA checklist
-- [docs/release.md](docs/release.md): signing, notarization and Sparkle updates
+- [docs/release.md](docs/release.md): releasing, signing and Sparkle updates
 
 ## License
 

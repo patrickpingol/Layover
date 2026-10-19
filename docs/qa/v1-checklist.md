@@ -1,6 +1,6 @@
 # Layover v1 manual QA checklist
 
-Run this on a Developer-ID-signed Release build (an ad-hoc Release build does not launch, see [release.md](../release.md)), or on a Debug build for a local pass, launched from `/Applications` where a step says so. Vocabulary follows [GLOSSARY.md](../../GLOSSARY.md). Record the date, build and result next to each item you run.
+Run this on a release downloaded from GitHub (see [release.md](../release.md)), or on a Debug build for a local pass, launched from `/Applications` where a step says so. Vocabulary follows [GLOSSARY.md](../../GLOSSARY.md). Record the date, build and result next to each item you run.
 
 In the container paths below, `<bundle id>` is `dev.mauipingol.Layover`. `defaults` commands for a sandboxed app act on `~/Library/Containers/dev.mauipingol.Layover/Data/Library/Preferences/dev.mauipingol.Layover.plist`.
 
@@ -125,7 +125,7 @@ Record what Finder reports for each of these.
 
 ## Updates
 
-- [ ] Choose Check for Updates… in the menu. Expected: Sparkle's UI appears. With the placeholder `SUFeedURL` and `SUPublicEDKey` a feed or key error is expected.
+- [ ] Choose Check for Updates… in the menu. Expected: Sparkle's UI appears. Before the first GitHub Release exists, a feed error is expected.
 - [ ] Run `codesign -d --entitlements - Layover.app`. Expected: `app-sandbox`, `network.client` and the two `mach-lookup` exceptions (`dev.mauipingol.Layover-spks`, `-spki`) are present.
 - [ ] Run `codesign -dv Layover.app`. Expected: the flags include `runtime`.
-- [ ] After the feed is hosted and signed (see [release.md](../release.md)), check for an update from an older build. Expected: the update is found, verified, installed and the app relaunches.
+- [ ] Once two releases exist, check for an update from the older one. Expected: the update is found, verified, installed and the app relaunches.
