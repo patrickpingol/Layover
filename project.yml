@@ -1,0 +1,24 @@
+name: OpenDrop
+options: { bundleIdPrefix: dev.opendrop, deploymentTarget: { macOS: "14.0" } }
+packages:
+  OpenDropKit: { path: OpenDropKit }
+targets:
+  OpenDrop:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+      - path: App/Resources
+        excludes: [Info.plist, OpenDrop.entitlements]
+    dependencies: [{ package: OpenDropKit, product: OpenDropCore }, { package: OpenDropKit, product: OpenDropUI }]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.opendrop.OpenDrop
+        SWIFT_VERSION: "6.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: App/Resources/OpenDrop.entitlements
+        INFOPLIST_FILE: App/Resources/Info.plist
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"

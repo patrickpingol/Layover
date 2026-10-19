@@ -12,5 +12,6 @@ let package = Package(
         .target(name: "OpenDropCore"),
         .target(name: "OpenDropUI", dependencies: ["OpenDropCore"]),
         .testTarget(name: "OpenDropCoreTests", dependencies: ["OpenDropCore"]),
+        .testTarget(name: "OpenDropUITests", dependencies: ["OpenDropUI"]),
     ]
 )
