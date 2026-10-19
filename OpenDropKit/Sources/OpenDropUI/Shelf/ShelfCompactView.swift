@@ -10,6 +10,9 @@ final class ShelfCompactView: NSView {
     /// Called when the stack is clicked (not dragged).
     var onStackClick: () -> Void = {}
 
+    /// Called when the "⋯" button is clicked, with the button to show the Item actions menu from.
+    var onMoreActions: (NSButton) -> Void = { _ in }
+
     /// Called when the Handle is dragged, with the mouse-down event and the Handle to drag from.
     var onHandleDrag: (NSEvent, NSView) -> Void {
         get { handle.onDrag }
@@ -21,6 +24,7 @@ final class ShelfCompactView: NSView {
     private let countLabel = NSTextField(labelWithString: "")
     private let emptyLabel = NSTextField(wrappingLabelWithString: String(localized: "Drop files here"))
     private let handle = HandleView()
+    private let moreButton = NSButton()
 
     init(thumbnails: ItemThumbnailProvider) {
         self.thumbnails = thumbnails
@@ -35,7 +39,18 @@ final class ShelfCompactView: NSView {
         emptyLabel.textColor = .secondaryLabelColor
         emptyLabel.alignment = .center
 
-        for view in [stack, countLabel, emptyLabel, handle] as [NSView] {
+        let moreTitle = String(localized: "Item Actions")
+        moreButton.isBordered = false
+        moreButton.imagePosition = .imageOnly
+        moreButton.contentTintColor = .secondaryLabelColor
+        moreButton.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        moreButton.image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: moreTitle)
+        moreButton.toolTip = moreTitle
+        moreButton.setAccessibilityLabel(moreTitle)
+        moreButton.target = self
+        moreButton.action = #selector(showMoreActions)
+
+        for view in [stack, countLabel, emptyLabel, handle, moreButton] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
@@ -57,6 +72,11 @@ final class ShelfCompactView: NSView {
             handle.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
             handle.widthAnchor.constraint(equalToConstant: HandleView.size.width),
             handle.heightAnchor.constraint(equalToConstant: HandleView.size.height),
+
+            moreButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            moreButton.centerYAnchor.constraint(equalTo: handle.centerYAnchor),
+            moreButton.widthAnchor.constraint(equalToConstant: 18),
+            moreButton.heightAnchor.constraint(equalToConstant: 18),
         ])
     }
 
@@ -69,8 +89,13 @@ final class ShelfCompactView: NSView {
         stack.isHidden = isEmpty
         countLabel.isHidden = isEmpty
         handle.isHidden = isEmpty
+        moreButton.isHidden = isEmpty
         countLabel.stringValue = String(localized: "\(items.count) items")
         stack.display(items, using: thumbnails)
+    }
+
+    @objc private func showMoreActions() {
+        onMoreActions(moreButton)
     }
 
     /// Bounces the thumbnail of the Item with `id`, or the whole stack when that Item is not one of

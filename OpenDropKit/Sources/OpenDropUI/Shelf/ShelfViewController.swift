@@ -19,6 +19,7 @@ final class ShelfViewController: NSViewController {
 
     private let importer: ItemImporter
     private let dragSource: ShelfDragSource
+    private let actions: ItemActionController
     private var shelf: Shelf
     private var isExpanded = false
 
@@ -28,12 +29,13 @@ final class ShelfViewController: NSViewController {
     private let pinButton = ShelfViewController.makeButton()
     private let expandButton = ShelfViewController.makeButton()
 
-    init(shelf: Shelf, thumbnails: ItemThumbnailProvider, importer: ItemImporter, dragSource: ShelfDragSource) {
+    init(shelf: Shelf, thumbnails: ItemThumbnailProvider, importer: ItemImporter, dragSource: ShelfDragSource, actions: ItemActionController) {
         self.shelf = shelf
         self.importer = importer
         self.dragSource = dragSource
+        self.actions = actions
         compactView = ShelfCompactView(thumbnails: thumbnails)
-        gridController = ShelfGridViewController(thumbnails: thumbnails, dragSource: dragSource)
+        gridController = ShelfGridViewController(thumbnails: thumbnails, dragSource: dragSource, actions: actions)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -63,6 +65,11 @@ final class ShelfViewController: NSViewController {
         pinButton.action = #selector(togglePin)
         expandButton.action = #selector(toggleExpanded)
         compactView.onStackClick = { [weak self] in self?.toggleExpanded() }
+        compactView.onMoreActions = { [weak self] button in
+            guard let self else { return }
+            let menu = actions.menu(for: shelf.items, anchor: button)
+            menu.popUp(positioning: nil, at: CGPoint(x: 0, y: button.bounds.height), in: button)
+        }
         compactView.onHandleDrag = { [weak self] event, handle in
             guard let self else { return }
             dragSource.beginDrag(of: shelf.items, from: handle, with: event)

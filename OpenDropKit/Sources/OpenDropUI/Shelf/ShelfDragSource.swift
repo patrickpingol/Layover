@@ -17,39 +17,28 @@ final class ShelfDragSource: NSObject, NSDraggingSource {
     /// Called when a drag ends with the IDs of the Items that were dragged and what the destination did.
     var onFinish: (Set<Item.ID>, NSDragOperation) -> Void = { _, _ in }
 
-    private let ownedFiles: OwnedFileStore
+    private let resolver: ItemURLResolver
     private let thumbnails: ItemThumbnailProvider
-    private let volumes: MountedVolumes
-    private var accessedURLs: [URL] = []
+    private var accessedURLs: [AccessedURL] = []
     private var draggedIDs: Set<Item.ID> = []
 
     init(ownedFiles: OwnedFileStore, thumbnails: ItemThumbnailProvider, volumes: MountedVolumes = SystemMountedVolumes()) {
-        self.ownedFiles = ownedFiles
+        resolver = ItemURLResolver(ownedFiles: ownedFiles, volumes: volumes)
         self.thumbnails = thumbnails
-        self.volumes = volumes
     }
 
     /// Whether `item`'s file can be reached right now, so it can be dragged. Starts no access.
     func canDrag(_ item: Item) -> Bool {
-        resolvedURL(of: item) != nil
+        resolver.url(of: item) != nil
     }
 
     /// The URL to drag for `item`, or nil when its file can't be reached right now. Starts
     /// security-scoped access to a file in place, which `finish(operation:)` stops.
     func entry(for item: Item) -> Entry? {
-        guard let url = resolvedURL(of: item) else { return nil }
-        if case .file = item.content, url.startAccessingSecurityScopedResource() { accessedURLs.append(url) }
+        guard let accessed = resolver.startAccess(to: item) else { return nil }
+        accessedURLs.append(accessed)
         draggedIDs.insert(item.id)
-        return Entry(item: item, url: url)
-    }
-
-    private func resolvedURL(of item: Item) -> URL? {
-        switch item.content {
-        case let .owned(file):
-            ownedFiles.url(for: file)
-        case let .file(reference):
-            if case let .available(url, _) = reference.resolve(volumes: volumes) { url } else { nil }
-        }
+        return Entry(item: item, url: accessed.url)
     }
 
     // MARK: The Handle
@@ -95,7 +84,7 @@ final class ShelfDragSource: NSObject, NSDraggingSource {
     }
 
     private func releaseAccess() {
-        for url in accessedURLs { url.stopAccessingSecurityScopedResource() }
+        for accessed in accessedURLs { accessed.stop() }
         accessedURLs = []
     }
 

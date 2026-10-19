@@ -94,6 +94,18 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         return outcomes
     }
 
+    /// Takes Items off an open Shelf, as Remove from Shelf does. Only the Shelf changes: a file in place
+    /// is left where it is, and an Owned File is deleted once no Shelf refers to it. Removing the last
+    /// Item leaves the Shelf open. A Shelf that isn't open changes nothing.
+    public func remove(_ itemIDs: Set<Item.ID>, from shelfID: Shelf.ID) {
+        guard var shelf = openShelf(shelfID) else { return }
+        let before = shelf
+        shelf.remove(itemIDs)
+        guard shelf != before else { return }
+        mutate { $0.update(shelf) }
+        panels[shelfID]?.controller.display(shelf)
+    }
+
     /// Applies the end of a drag out of an open Shelf: when the destination moved the dragged Items
     /// they leave the Shelf. If that emptied it and the preference is on, the Shelf closes on the
     /// next main-actor turn, not inside the callback AppKit is still running to end the drag.
@@ -145,7 +157,12 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         dragSource.onFinish = { [weak self] draggedIDs, operation in
             self?.finishDrag(of: draggedIDs, from: id, operation: operation)
         }
-        let controller = ShelfViewController(shelf: shelf, thumbnails: thumbnails, importer: importer, dragSource: dragSource)
+        let actions = ItemActionController(resolver: ItemURLResolver(ownedFiles: ownedFiles)) { [weak self] itemIDs in
+            self?.remove(itemIDs, from: id)
+        }
+        let controller = ShelfViewController(
+            shelf: shelf, thumbnails: thumbnails, importer: importer, dragSource: dragSource, actions: actions
+        )
         controller.onAdd = { [weak self] contents in self?.add(contents, to: id) ?? [] }
         controller.isShelfOpen = { [weak self] in self?.openShelf(id) != nil }
         controller.onClose = { [weak self] in self?.close(id) }

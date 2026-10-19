@@ -2,6 +2,9 @@ import AppKit
 import OpenDropCore
 
 /// A Shelf's expanded look: a scrolling four-column grid of Item icons and names.
+///
+/// The grid acts on its Items: a double-click opens one, a context menu offers the Item actions, and
+/// with the selection Space shows Quick Look, ⌘C copies and ⌫ removes from the Shelf.
 @MainActor
 final class ShelfGridViewController: NSViewController, NSCollectionViewDataSource, NSCollectionViewDelegate {
     static let width: CGFloat = 420
@@ -14,12 +17,14 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
 
     private let thumbnails: ItemThumbnailProvider
     private let dragSource: ShelfDragSource
-    private let collectionView = NSCollectionView()
+    private let actions: ItemActionController
+    private let collectionView = ShelfCollectionView()
     private var items: [Item] = []
 
-    init(thumbnails: ItemThumbnailProvider, dragSource: ShelfDragSource) {
+    init(thumbnails: ItemThumbnailProvider, dragSource: ShelfDragSource, actions: ItemActionController) {
         self.thumbnails = thumbnails
         self.dragSource = dragSource
+        self.actions = actions
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -51,6 +56,9 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
         collectionView.setDraggingSourceOperationMask(dragSource.sourceOperationMask(for: .withinApplication), forLocal: true)
         collectionView.setDraggingSourceOperationMask(dragSource.sourceOperationMask(for: .outsideApplication), forLocal: false)
         collectionView.register(ShelfGridItem.self, forItemWithIdentifier: ShelfGridItem.identifier)
+        collectionView.onContextMenu = { [weak self] event in self?.contextMenu(for: event) }
+        collectionView.onDoubleClick = { [weak self] indexPath in self?.open(at: indexPath) }
+        collectionView.onKeyAction = { [weak self] action in self?.perform(action) ?? false }
 
         let scrollView = NSScrollView()
         scrollView.documentView = collectionView
@@ -69,6 +77,40 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
     func bounce(_ id: Item.ID) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         collectionView.item(at: IndexPath(item: index, section: 0))?.view.bounce()
+    }
+
+    // MARK: Item actions
+
+    private var selectedItems: [Item] {
+        collectionView.selectionIndexPaths.sorted().compactMap { items.indices.contains($0.item) ? items[$0.item] : nil }
+    }
+
+    /// The menu for the Item under the mouse, or for the whole selection when that Item is part of it.
+    private func contextMenu(for event: NSEvent) -> NSMenu? {
+        let point = collectionView.convert(event.locationInWindow, from: nil)
+        guard let indexPath = collectionView.indexPathForItem(at: point), items.indices.contains(indexPath.item) else { return nil }
+        if !collectionView.selectionIndexPaths.contains(indexPath) {
+            collectionView.selectionIndexPaths = [indexPath]
+        }
+        return actions.menu(for: selectedItems, anchor: collectionView.item(at: indexPath)?.view ?? collectionView)
+    }
+
+    private func open(at indexPath: IndexPath) {
+        guard items.indices.contains(indexPath.item) else { return }
+        actions.perform(.open, on: [items[indexPath.item]], anchor: collectionView)
+    }
+
+    /// Performs a keyboard action on the selection. Returns false when there is nothing to act on.
+    private func perform(_ action: ItemAction) -> Bool {
+        let selected = selectedItems
+        if action == .quickLook {
+            // Space also closes a Quick Look panel that is up, whatever is selected.
+            actions.toggleQuickLook(for: selected, anchor: collectionView)
+            return true
+        }
+        guard !selected.isEmpty else { return false }
+        actions.perform(action, on: selected, anchor: collectionView)
+        return true
     }
 
     // MARK: NSCollectionViewDataSource
@@ -110,6 +152,53 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
         endedAt screenPoint: NSPoint, dragOperation operation: NSDragOperation
     ) {
         dragSource.finish(operation: operation)
+    }
+}
+
+/// The grid's collection view, with the mouse and keyboard handling for the Item actions.
+@MainActor
+private final class ShelfCollectionView: NSCollectionView {
+    var onContextMenu: (NSEvent) -> NSMenu? = { _ in nil }
+    var onDoubleClick: (IndexPath) -> Void = { _ in }
+    /// Called for Space (Quick Look), ⌘C (Copy) and ⌫ (Remove from Shelf); returns whether it acted.
+    var onKeyAction: (ItemAction) -> Bool = { _ in false }
+
+    private static let spaceKeyCode: UInt16 = 49
+    private static let deleteKeyCodes: Set<UInt16> = [51, 117]
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        onContextMenu(event)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        super.mouseDown(with: event)
+        guard event.clickCount == 2, Self.modifiers(of: event).isEmpty,
+              let indexPath = indexPathForItem(at: convert(event.locationInWindow, from: nil))
+        else { return }
+        onDoubleClick(indexPath)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard Self.modifiers(of: event).isEmpty else { return super.keyDown(with: event) }
+        let action: ItemAction? = switch event.keyCode {
+        case Self.spaceKeyCode: .quickLook
+        case let code where Self.deleteKeyCodes.contains(code): .remove
+        default: nil
+        }
+        guard let action, onKeyAction(action) else { return super.keyDown(with: event) }
+    }
+
+    // OpenDrop has no Edit menu, so ⌘C reaches the grid as a key equivalent.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard !isHiddenOrHasHiddenAncestor, Self.modifiers(of: event) == .command,
+              event.charactersIgnoringModifiers == "c"
+        else { return super.performKeyEquivalent(with: event) }
+        return onKeyAction(.copy)
+    }
+
+    private static func modifiers(of event: NSEvent) -> NSEvent.ModifierFlags {
+        event.modifierFlags.intersection(.deviceIndependentFlagsMask)
     }
 }
 
