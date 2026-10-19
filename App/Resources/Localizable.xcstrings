@@ -1,13 +1,13 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "OpenDrop": {
+    "Layover": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "OpenDrop"
+            "value": "Layover"
           }
         }
       }
@@ -45,13 +45,13 @@
         }
       }
     },
-    "Quit OpenDrop": {
+    "Quit Layover": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quit OpenDrop"
+            "value": "Quit Layover"
           }
         }
       }

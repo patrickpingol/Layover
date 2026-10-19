@@ -1,8 +1,8 @@
-# Dropover 5.1.3 — teardown for OpenDrop
+# Dropover 5.1.3 — teardown for Layover
 
 Target: `/Applications/Dropover.app` (`me.damir.dropover-mac`, build 569, Mac App Store, universal arm64/x86_64, min macOS 13, built with Xcode 26 / macOS 26 SDK).
 
-Purpose: understand *behavior and architecture* so OpenDrop can be a clean-room re-implementation. Nothing here should be copied verbatim (code, strings, icons, videos, nibs). Third-party pieces Dropover embeds are open source and can be used directly under their own licenses.
+Purpose: understand *behavior and architecture* so Layover can be a clean-room re-implementation. Nothing here should be copied verbatim (code, strings, icons, videos, nibs). Third-party pieces Dropover embeds are open source and can be used directly under their own licenses.
 
 Evidence legend: **[O]** observed in the shipped artifact (plist, symbols, strings, decompiled code). **[I]** inferred from observations. **[?]** unresolved.
 
@@ -114,7 +114,7 @@ struct ShakeDetector {
 }
 ```
 
-**[?]** The three sensitivity levels (`normal`, `high`, `ludicrous`) and how they change these numbers weren't found: no other threshold pair exists in the constant pool, so they're probably immediate values in a setter that wasn't decompiled. A reasonable OpenDrop choice is to lower `requiredReversals` and `minStroke` as sensitivity goes up.
+**[?]** The three sensitivity levels (`normal`, `high`, `ludicrous`) and how they change these numbers weren't found: no other threshold pair exists in the constant pool, so they're probably immediate values in a setter that wasn't decompiled. A reasonable Layover choice is to lower `requiredReversals` and `minStroke` as sensitivity goes up.
 
 ### 3.3 Other ways to open a shelf [O]
 
@@ -200,12 +200,12 @@ SwiftyDropbox, Alamofire, OAuthSwift, SwiftyBeaver, a Zip library, optipng, Sent
 
 ---
 
-## 10. Suggested OpenDrop architecture (design choices, not observations)
+## 10. Suggested Layover architecture (design choices, not observations)
 
 Native Swift + AppKit is the only realistic stack: global NSEvent monitors, drag-pasteboard polling, borderless `NSPanel`s, Carbon hotkeys. Electron/Tauri can't do this cleanly.
 
 ```
-OpenDrop (LSUIElement agent)
+Layover (LSUIElement agent)
 ├── App/            AppDelegate, StatusItem menu, Settings (SwiftUI)
 ├── Activation/     DragMonitor (global monitors + drag-pasteboard watchdog)
 │                   ShakeDetector (§3.2), ModifierTrigger, NotchTrigger, HotKeys (Carbon)

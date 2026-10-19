@@ -1,6 +1,6 @@
-# OpenDrop
+# Layover
 
-OpenDrop (working codename) is a macOS menu-bar utility for temporarily collecting dragged content in floating windows, then moving or sharing it elsewhere.
+Layover is a macOS menu-bar utility for temporarily collecting dragged content in floating windows, then moving or sharing it elsewhere.
 
 ## Language
 
@@ -9,11 +9,11 @@ A floating window that temporarily holds Items gathered by drag and drop.
 _Avoid_: Drag session, stash, stack, tray, window
 
 **Item**:
-One thing held on a Shelf. For a dropped file it is a reference to the original file in place, not a copy. For dropped text, links or images that aren't files, it is a file OpenDrop owns.
+One thing held on a Shelf. For a dropped file it is a reference to the original file in place, not a copy. For dropped text, links or images that aren't files, it is a file Layover owns.
 _Avoid_: Draggable, clip, entry
 
 **Owned File**:
-A file OpenDrop creates to hold dropped content that wasn't already a file: text, a link, an image, or a file another app only promised (such as a Mail attachment). It is deleted once no Shelf or Recent Shelf refers to it.
+A file Layover creates to hold dropped content that wasn't already a file: text, a link, an image, or a file another app only promised (such as a Mail attachment). It is deleted once no Shelf or Recent Shelf refers to it.
 _Avoid_: Temp file, generated file
 
 **Handle**:
@@ -39,5 +39,5 @@ A closed, non-empty Shelf that can be reopened. Only the most recent ones are ke
 _Avoid_: History, previous shelf, closed shelf
 
 **Pinned Shelf**:
-A Shelf that stays open until explicitly closed and reappears after OpenDrop relaunches.
+A Shelf that stays open until explicitly closed and reappears after Layover relaunches.
 _Avoid_: Sticky shelf, saved shelf

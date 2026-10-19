@@ -1,7 +1,7 @@
 import AppKit
 import Combine
-import OpenDropCore
-import OpenDropUI
+import LayoverCore
+import LayoverUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -61,8 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.restorePinnedShelves()
 
         #if DEBUG
-        // `-OpenDropOpenShelfOnLaunch YES` opens a Shelf at launch, so a launch check exercises the panel.
-        if UserDefaults.standard.bool(forKey: "OpenDropOpenShelfOnLaunch") {
+        // `-LayoverOpenShelfOnLaunch YES` opens a Shelf at launch, so a launch check exercises the panel.
+        if UserDefaults.standard.bool(forKey: "LayoverOpenShelfOnLaunch") {
             coordinator.openNewShelf(at: NSEvent.mouseLocation)
         }
         #endif

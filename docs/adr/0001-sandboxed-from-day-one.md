@@ -1,6 +1,6 @@
 # Sandboxed from day one
 
-OpenDrop ships as a direct download, which doesn't require the App Sandbox. We still enable it, along with hardened runtime and notarization, from the first commit. Retrofitting the sandbox later would invalidate every saved Item reference and move user-script and screenshot-folder locations, and we want a future App Store release to stay possible.
+Layover ships as a direct download, which doesn't require the App Sandbox. We still enable it, along with hardened runtime and notarization, from the first commit. Retrofitting the sandbox later would invalidate every saved Item reference and move user-script and screenshot-folder locations, and we want a future App Store release to stay possible.
 
 ## Consequences
 

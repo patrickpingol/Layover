@@ -1,22 +1,22 @@
-name: OpenDrop
-options: { bundleIdPrefix: dev.opendrop, deploymentTarget: { macOS: "14.0" } }
+name: Layover
+options: { bundleIdPrefix: dev.mauipingol, deploymentTarget: { macOS: "14.0" } }
 packages:
-  OpenDropKit: { path: OpenDropKit }
+  LayoverKit: { path: LayoverKit }
 targets:
-  OpenDrop:
+  Layover:
     type: application
     platform: macOS
     sources:
       - path: App/Sources
       - path: App/Resources
-        excludes: [Info.plist, OpenDrop.entitlements]
-    dependencies: [{ package: OpenDropKit, product: OpenDropCore }, { package: OpenDropKit, product: OpenDropUI }]
+        excludes: [Info.plist, Layover.entitlements]
+    dependencies: [{ package: LayoverKit, product: LayoverCore }, { package: LayoverKit, product: LayoverUI }]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.opendrop.OpenDrop
+        PRODUCT_BUNDLE_IDENTIFIER: dev.mauipingol.Layover
         SWIFT_VERSION: "6.0"
         ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_ENTITLEMENTS: App/Resources/OpenDrop.entitlements
+        CODE_SIGN_ENTITLEMENTS: App/Resources/Layover.entitlements
         INFOPLIST_FILE: App/Resources/Info.plist
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"

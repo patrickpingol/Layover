@@ -1,11 +1,11 @@
-# OpenDrop v1 — design
+# Layover v1 — design
 
 Vocabulary: see `GLOSSARY.md` (Shelf, Item, Owned File, Handle, Shake, Ignored App, Unavailable Item, Recent Shelf, Pinned Shelf).
 Background: `docs/research/dropover-teardown.md`. Architectural decision: `docs/adr/0001-sandboxed-from-day-one.md`.
 
 ## Product
 
-1. Open source (MIT), direct download, not App Store for now. "OpenDrop" is a codename; the public name is chosen before the first release.
+1. Open source (MIT), direct download, not App Store for now.
 2. Native Swift; AppKit for the app core; SwiftUI only for Settings. Minimum macOS 14.
 3. App Sandbox, hardened runtime and notarization from day one.
 4. Sparkle for updates. No analytics, no crash reporting.
@@ -52,7 +52,7 @@ A Shake opens a Shelf only if the drag pasteboard changed during the same drag (
 
 - Closing a non-empty Shelf makes it a Recent Shelf. The 10 most recent are kept. Closing an empty Shelf discards it.
 - Pinned Shelves stay open until closed and reappear after relaunch.
-- Unpinned Shelves that are open when OpenDrop quits become Recent Shelves.
+- Unpinned Shelves that are open when Layover quits become Recent Shelves.
 - Owned Files are deleted once no open Shelf or Recent Shelf refers to them. Copies the user dragged out are never touched.
 
 ## Settings (v1, exactly)
