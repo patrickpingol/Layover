@@ -10,11 +10,17 @@ final class ShelfCompactView: NSView {
     /// Called when the stack is clicked (not dragged).
     var onStackClick: () -> Void = {}
 
+    /// Called when the Handle is dragged, with the mouse-down event and the Handle to drag from.
+    var onHandleDrag: (NSEvent, NSView) -> Void {
+        get { handle.onDrag }
+        set { handle.onDrag = newValue }
+    }
+
     private let thumbnails: ItemThumbnailProvider
     private let stack = ThumbnailStackView()
     private let countLabel = NSTextField(labelWithString: "")
     private let emptyLabel = NSTextField(wrappingLabelWithString: String(localized: "Drop files here"))
-    private let handle = NSView()
+    private let handle = HandleView()
 
     init(thumbnails: ItemThumbnailProvider) {
         self.thumbnails = thumbnails
@@ -28,10 +34,6 @@ final class ShelfCompactView: NSView {
         emptyLabel.font = .systemFont(ofSize: 12, weight: .medium)
         emptyLabel.textColor = .secondaryLabelColor
         emptyLabel.alignment = .center
-
-        handle.wantsLayer = true
-        handle.layer?.backgroundColor = NSColor.tertiaryLabelColor.cgColor
-        handle.layer?.cornerRadius = 2.5
 
         for view in [stack, countLabel, emptyLabel, handle] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
@@ -52,9 +54,9 @@ final class ShelfCompactView: NSView {
             emptyLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
 
             handle.centerXAnchor.constraint(equalTo: centerXAnchor),
-            handle.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
-            handle.widthAnchor.constraint(equalToConstant: 36),
-            handle.heightAnchor.constraint(equalToConstant: 5),
+            handle.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            handle.widthAnchor.constraint(equalToConstant: HandleView.size.width),
+            handle.heightAnchor.constraint(equalToConstant: HandleView.size.height),
         ])
     }
 
@@ -156,5 +158,42 @@ private final class ThumbnailStackView: NSView {
         guard mouseDownEvent != nil else { return }
         mouseDownEvent = nil
         if bounds.contains(convert(event.locationInWindow, from: nil)) { onClick() }
+    }
+}
+
+/// The Handle: a small pill, in a larger area to grab, that drags all the Shelf's Items out.
+/// It doesn't move the window.
+@MainActor
+private final class HandleView: NSView {
+    static let size = CGSize(width: 84, height: 22)
+    private static let pill = CGSize(width: 36, height: 5)
+
+    var onDrag: (NSEvent, NSView) -> Void = { _, _ in }
+
+    private var mouseDownEvent: NSEvent?
+
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let pill = CGRect(
+            x: bounds.midX - Self.pill.width / 2, y: bounds.midY - Self.pill.height / 2,
+            width: Self.pill.width, height: Self.pill.height
+        )
+        NSColor.tertiaryLabelColor.setFill()
+        NSBezierPath(roundedRect: pill, xRadius: Self.pill.height / 2, yRadius: Self.pill.height / 2).fill()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        mouseDownEvent = event
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let mouseDownEvent else { return }
+        self.mouseDownEvent = nil
+        onDrag(mouseDownEvent, self)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        mouseDownEvent = nil
     }
 }

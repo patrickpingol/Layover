@@ -18,6 +18,7 @@ final class ShelfViewController: NSViewController {
     var isShelfOpen: () -> Bool = { false }
 
     private let importer: ItemImporter
+    private let dragSource: ShelfDragSource
     private var shelf: Shelf
     private var isExpanded = false
 
@@ -27,11 +28,12 @@ final class ShelfViewController: NSViewController {
     private let pinButton = ShelfViewController.makeButton()
     private let expandButton = ShelfViewController.makeButton()
 
-    init(shelf: Shelf, thumbnails: ItemThumbnailProvider, importer: ItemImporter) {
+    init(shelf: Shelf, thumbnails: ItemThumbnailProvider, importer: ItemImporter, dragSource: ShelfDragSource) {
         self.shelf = shelf
         self.importer = importer
+        self.dragSource = dragSource
         compactView = ShelfCompactView(thumbnails: thumbnails)
-        gridController = ShelfGridViewController(thumbnails: thumbnails)
+        gridController = ShelfGridViewController(thumbnails: thumbnails, dragSource: dragSource)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -60,6 +62,10 @@ final class ShelfViewController: NSViewController {
         pinButton.action = #selector(togglePin)
         expandButton.action = #selector(toggleExpanded)
         compactView.onStackClick = { [weak self] in self?.toggleExpanded() }
+        compactView.onHandleDrag = { [weak self] event, handle in
+            guard let self else { return }
+            dragSource.beginDrag(of: shelf.items, from: handle, with: event)
+        }
 
         let trailingButtons = NSStackView(views: [pinButton, expandButton])
         trailingButtons.spacing = 4

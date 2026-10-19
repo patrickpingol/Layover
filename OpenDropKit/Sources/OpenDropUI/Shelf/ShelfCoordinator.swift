@@ -90,10 +90,27 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         return outcomes
     }
 
+    /// Applies the end of a drag out of an open Shelf: when the destination moved the dragged Items
+    /// they leave the Shelf, which closes if that emptied it and the preference is on. A Shelf that
+    /// isn't open changes nothing.
+    public func finishDrag(of draggedIDs: Set<Item.ID>, from shelfID: Shelf.ID, operation: NSDragOperation) {
+        guard var shelf = openShelf(shelfID) else { return }
+        let shouldClose = DragOutcome.apply(
+            operation: operation, draggedIDs: draggedIDs, to: &shelf, closeWhenEmptied: preferences.closeShelfWhenEmptied
+        )
+        if shelf != openShelf(shelfID) {
+            mutate { $0.update(shelf) }
+            panels[shelfID]?.controller.display(shelf)
+        }
+        if shouldClose { close(shelfID) }
+    }
+
     private func close(_ id: Shelf.ID) {
-        guard let open = panels.removeValue(forKey: id) else { return }
-        open.panel.delegate = nil
-        open.panel.close()
+        guard openShelf(id) != nil else { return }
+        if let open = panels.removeValue(forKey: id) {
+            open.panel.delegate = nil
+            open.panel.close()
+        }
         mutate { $0.close(id) }
     }
 
@@ -108,7 +125,11 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
 
     private func show(_ shelf: Shelf, at origin: CGPoint) {
         let id = shelf.id
-        let controller = ShelfViewController(shelf: shelf, thumbnails: thumbnails, importer: importer)
+        let dragSource = ShelfDragSource(ownedFiles: ownedFiles, thumbnails: thumbnails)
+        dragSource.onFinish = { [weak self] draggedIDs, operation in
+            self?.finishDrag(of: draggedIDs, from: id, operation: operation)
+        }
+        let controller = ShelfViewController(shelf: shelf, thumbnails: thumbnails, importer: importer, dragSource: dragSource)
         controller.onAdd = { [weak self] contents in self?.add(contents, to: id) ?? [] }
         controller.isShelfOpen = { [weak self] in self?.openShelf(id) != nil }
         controller.onClose = { [weak self] in self?.close(id) }

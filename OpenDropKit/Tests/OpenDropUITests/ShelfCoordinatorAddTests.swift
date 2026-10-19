@@ -4,7 +4,7 @@ import OpenDropCore
 @testable import OpenDropUI
 
 /// `LibrarySnapshot`'s initializer is internal to Core, so a snapshot is built the way a relaunch gets one.
-private func snapshot(pinned: [Shelf]) throws -> LibrarySnapshot {
+func snapshot(pinned: [Shelf]) throws -> LibrarySnapshot {
     struct Raw: Encodable {
         var version: Int
         var pinned: [Shelf]
@@ -15,8 +15,10 @@ private func snapshot(pinned: [Shelf]) throws -> LibrarySnapshot {
 }
 
 @MainActor
-private func withCoordinator(
-    shelf: Shelf, _ body: (ShelfCoordinator, OwnedFileStore, URL) throws -> Void
+func withCoordinator(
+    shelf: Shelf,
+    preferences: Preferences = Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!),
+    _ body: (ShelfCoordinator, OwnedFileStore, URL) throws -> Void
 ) throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -26,7 +28,7 @@ private func withCoordinator(
         library: ShelfLibrary(snapshot: try snapshot(pinned: [shelf])),
         store: ShelfStore(fileURL: root.appendingPathComponent("shelves.json")),
         ownedFiles: ownedFiles,
-        preferences: Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!)
+        preferences: preferences
     )
     try body(coordinator, ownedFiles, root)
     coordinator.saveNow()
