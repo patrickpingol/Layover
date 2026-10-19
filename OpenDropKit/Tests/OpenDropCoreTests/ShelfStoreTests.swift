@@ -91,17 +91,114 @@ private func setAsideFiles(in directory: URL) throws -> [URL] {
     }
 }
 
-@Test func failedSetAsideStillLoadsEmptyAndKeepsOriginal() throws {
+/// Read-only directories don't stop root, so tests that rely on one can't run as root.
+private let isNotRoot = getuid() != 0
+
+/// Runs `body` with `dir` made read-only, so renames and writes inside it fail.
+private func withReadOnly(_ dir: URL, _ body: () throws -> Void) throws {
+    try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: dir.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path) }
+    try body()
+}
+
+@Test(.enabled(if: isNotRoot))
+func failedSetAsideStillLoadsEmptyAndKeepsOriginal() throws {
     try withTempDirectory { dir in
         let file = dir.appendingPathComponent("shelves.json")
         let bad = Data("{nope".utf8)
         try bad.write(to: file)
-        // A read-only directory makes the rename fail.
-        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: dir.path)
-        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path) }
+
+        try withReadOnly(dir) {
+            #expect(ShelfStore(fileURL: file).load() == .empty)
+            let remaining = try Data(contentsOf: file)
+            #expect(remaining == bad)
+        }
+    }
+}
+
+@Test(.enabled(if: isNotRoot))
+func saveAfterFailedSetAsideThrowsAndKeepsOriginal() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        let bad = Data("{nope".utf8)
+        try bad.write(to: file)
+        let store = ShelfStore(fileURL: file)
+
+        try withReadOnly(dir) {
+            #expect(store.load() == .empty)
+            #expect(throws: ShelfStore.Error.unreadableFileCouldNotBeSetAside) {
+                try store.save(LibrarySnapshot(version: 1, pinned: [ownedShelf(createdAt: 1_700_000_000)], recent: []))
+            }
+            let remaining = try Data(contentsOf: file)
+            #expect(remaining == bad)
+        }
+    }
+}
+
+@Test func saveSetsAsideUnreadableFileBeforeWriting() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        let bad = Data("{nope".utf8)
+        try bad.write(to: file)
+        let store = ShelfStore(fileURL: file)
+        let snapshot = LibrarySnapshot(version: 1, pinned: [], recent: [ownedShelf(createdAt: 1_700_000_000)])
+
+        try store.save(snapshot)
+
+        #expect(store.load() == snapshot)
+        let aside = try setAsideFiles(in: dir)
+        #expect(aside.count == 1)
+        #expect(try Data(contentsOf: aside[0]) == bad)
+    }
+}
+
+@Test func saveOverValidFileReplacesIt() throws {
+    try withTempDirectory { dir in
+        let store = ShelfStore(fileURL: dir.appendingPathComponent("shelves.json"))
+        try store.save(LibrarySnapshot(version: 1, pinned: [], recent: [ownedShelf(createdAt: 1_700_000_000)]))
+        let second = LibrarySnapshot(version: 1, pinned: [ownedShelf(createdAt: 1_700_000_100)], recent: [])
+
+        try store.save(second)
+
+        #expect(store.load() == second)
+        #expect(try setAsideFiles(in: dir).isEmpty)
+    }
+}
+
+@Test func olderVersionLoadsAsDecoded() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        try Data(#"{"version": 0, "pinned": [], "recent": []}"#.utf8).write(to: file)
+
+        #expect(ShelfStore(fileURL: file).load() == LibrarySnapshot(version: 0, pinned: [], recent: []))
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        #expect(try setAsideFiles(in: dir).isEmpty)
+    }
+}
+
+@Test func missingVersionKeyIsSetAside() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        try Data(#"{"pinned": [], "recent": []}"#.utf8).write(to: file)
 
         #expect(ShelfStore(fileURL: file).load() == .empty)
-        #expect(try Data(contentsOf: file) == bad)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        #expect(try setAsideFiles(in: dir).count == 1)
+    }
+}
+
+@Test func directoryAtFileURLIsTreatedAsUnreadable() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+
+        #expect(ShelfStore(fileURL: file).load() == .empty)
+
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        let aside = try setAsideFiles(in: dir)
+        #expect(aside.count == 1)
+        let isDirectory = try aside[0].resourceValues(forKeys: [.isDirectoryKey]).isDirectory
+        #expect(isDirectory == true)
     }
 }
 

@@ -8,26 +8,46 @@ public struct ShelfStore: Sendable {
         self.fileURL = fileURL
     }
 
+    public enum Error: Swift.Error, Equatable {
+        /// `save` found a file it can't read as a snapshot and couldn't move it aside, so it wrote nothing.
+        case unreadableFileCouldNotBeSetAside
+    }
+
+    private enum FileState {
+        case missing
+        case valid(LibrarySnapshot)
+        /// Any read failure other than a missing file, undecodable data, or a newer version.
+        case unreadable
+    }
+
     /// Returns the saved snapshot, or `.empty` if there is none or it can't be used.
-    /// A file that can't be decoded, or that was written by a newer version, is renamed to
+    /// An unreadable file (read failure, undecodable data, or a newer version) is renamed to
     /// `<name>.unreadable-<yyyyMMdd-HHmmss>` next to it so the data isn't lost. If that rename fails the
-    /// original stays where it is and is retried at the next launch. Never throws.
+    /// original stays in place, and `save` refuses to overwrite it. Never throws.
     public func load() -> LibrarySnapshot {
-        guard let data = try? Data(contentsOf: fileURL) else { return .empty }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        if let snapshot = try? decoder.decode(LibrarySnapshot.self, from: data),
-           snapshot.version <= LibrarySnapshot.currentVersion {
+        switch readFile() {
+        case .missing:
+            return .empty
+        case let .valid(snapshot):
             return snapshot
+        case .unreadable:
+            try? setAsideUnreadableFile()
+            return .empty
         }
-
-        setAsideUnreadableFile()
-        return .empty
     }
 
     /// Writes the snapshot atomically, creating the parent directory if needed.
+    /// A file already there that isn't a usable snapshot is set aside first, never overwritten;
+    /// if that fails, throws `Error.unreadableFileCouldNotBeSetAside` and writes nothing.
     public func save(_ snapshot: LibrarySnapshot) throws {
+        if case .unreadable = readFile() {
+            do {
+                try setAsideUnreadableFile()
+            } catch {
+                throw Error.unreadableFileCouldNotBeSetAside
+            }
+        }
+
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -40,7 +60,26 @@ public struct ShelfStore: Sendable {
         try data.write(to: fileURL, options: .atomic)
     }
 
-    private func setAsideUnreadableFile() {
+    private func readFile() -> FileState {
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            return .missing
+        } catch {
+            return .unreadable
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let snapshot = try? decoder.decode(LibrarySnapshot.self, from: data),
+              snapshot.version <= LibrarySnapshot.currentVersion else {
+            return .unreadable
+        }
+        return .valid(snapshot)
+    }
+
+    private func setAsideUnreadableFile() throws {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "UTC")
@@ -54,6 +93,6 @@ public struct ShelfStore: Sendable {
             destination = directory.appendingPathComponent("\(name)-\(suffix)")
             suffix += 1
         }
-        try? FileManager.default.moveItem(at: fileURL, to: destination)
+        try FileManager.default.moveItem(at: fileURL, to: destination)
     }
 }
