@@ -6,20 +6,26 @@ import OpenDropUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = Preferences()
-    private let store = ShelfStore(fileURL: AppPaths.shelvesFile)
-    private var library = ShelfLibrary(snapshot: .empty)
+    private var coordinator: ShelfCoordinator?
     private var statusMenu: StatusMenuController?
     private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        library = ShelfLibrary(snapshot: store.load())
+        let store = ShelfStore(fileURL: AppPaths.shelvesFile)
+        let coordinator = ShelfCoordinator(
+            library: ShelfLibrary(snapshot: store.load()),
+            store: store,
+            ownedFiles: OwnedFileStore(directory: AppPaths.ownedFilesDirectory),
+            preferences: preferences
+        )
+        self.coordinator = coordinator
 
         let statusMenu = StatusMenuController(
-            onNewShelf: { print("New Shelf") },
+            onNewShelf: { [weak coordinator] in coordinator?.openNewShelf(at: NSEvent.mouseLocation) },
             onOpenSettings: { print("Settings") },
-            recentShelves: { [weak self] in self?.library.recent ?? [] },
-            onReopen: { [weak self] id in self?.update { _ = $0.reopen(id) } },
-            onClearRecent: { [weak self] in self?.update { $0.clearRecent() } }
+            recentShelves: { [weak coordinator] in coordinator?.library.recent ?? [] },
+            onReopen: { [weak coordinator] id in coordinator?.reopen(id) },
+            onClearRecent: { [weak coordinator] in coordinator?.clearRecent() }
         )
         self.statusMenu = statusMenu
 
@@ -29,14 +35,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preferences.$newShelfHotKey
             .sink { statusMenu.setNewShelfHotKey($0) }
             .store(in: &subscriptions)
+
+        coordinator.restorePinnedShelves()
+
+        #if DEBUG
+        // `-OpenDropOpenShelfOnLaunch YES` opens a Shelf at launch, so a launch check exercises the panel.
+        if UserDefaults.standard.bool(forKey: "OpenDropOpenShelfOnLaunch") {
+            coordinator.openNewShelf(at: NSEvent.mouseLocation)
+        }
+        #endif
     }
 
-    private func update(_ change: (inout ShelfLibrary) -> Void) {
-        change(&library)
-        do {
-            try store.save(library.snapshot())
-        } catch {
-            print("Could not save shelves: \(error)")
-        }
+    func applicationWillTerminate(_ notification: Notification) {
+        coordinator?.saveNow()
     }
 }
