@@ -14,6 +14,24 @@ public enum ShelfPlacement {
         return clamped(preferred, size: size, visibleFrame: visibleFrame)
     }
 
+    /// Where a Shelf of `size` reappears: its saved frame's top-left corner, clamped fully onto the visible
+    /// frame the saved frame overlaps most. Centered on `fallback` when there is no saved frame or it
+    /// overlaps none of `visibleFrames`.
+    static func restoredOrigin(of frame: CGRect?, size: CGSize, visibleFrames: [CGRect], fallback: CGRect?) -> CGPoint {
+        if let frame,
+           let screen = visibleFrames.max(by: { overlap(frame, $0) < overlap(frame, $1) }),
+           overlap(frame, screen) > 0 {
+            return clamped(CGPoint(x: frame.minX, y: frame.maxY - size.height), size: size, visibleFrame: screen)
+        }
+        guard let fallback else { return frame?.origin ?? .zero }
+        return CGPoint(x: fallback.midX - size.width / 2, y: fallback.midY - size.height / 2)
+    }
+
+    private static func overlap(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        let shared = a.intersection(b)
+        return shared.isNull ? 0 : shared.width * shared.height
+    }
+
     /// Moves `origin` the least needed to keep a Shelf of `size` inside `visibleFrame` inset by `margin`.
     /// A Shelf larger than that area is pinned to its left and top edges.
     static func clamped(_ origin: CGPoint, size: CGSize, visibleFrame: CGRect) -> CGPoint {

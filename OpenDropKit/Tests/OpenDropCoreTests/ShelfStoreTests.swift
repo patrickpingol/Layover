@@ -209,3 +209,32 @@ func saveAfterFailedSetAsideThrowsAndKeepsOriginal() throws {
         #expect(FileManager.default.fileExists(atPath: file.path))
     }
 }
+
+@Test func noSetAsideFilesWhenDirectoryHasNoSiblings() throws {
+    try withTempDirectory { dir in
+        let store = ShelfStore(fileURL: dir.appendingPathComponent("shelves.json"))
+        #expect(!store.hasSetAsideFiles)
+        try store.save(.empty)
+        #expect(!store.hasSetAsideFiles)
+    }
+}
+
+@Test func corruptLoadLeavesSetAsideFile() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        try Data("{nope".utf8).write(to: file)
+        let store = ShelfStore(fileURL: file)
+        _ = store.load()
+        #expect(store.hasSetAsideFiles)
+    }
+}
+
+@Test func unrelatedSiblingsAreNotSetAsideFiles() throws {
+    try withTempDirectory { dir in
+        for name in ["other.json.unreadable-20261019-120000", "shelves.json.bak", "notes.txt"] {
+            try Data("x".utf8).write(to: dir.appendingPathComponent(name))
+        }
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("OwnedFiles"), withIntermediateDirectories: true)
+        #expect(!ShelfStore(fileURL: dir.appendingPathComponent("shelves.json")).hasSetAsideFiles)
+    }
+}

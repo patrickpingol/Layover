@@ -6,7 +6,8 @@ import os
 /// and keeps the library saved.
 ///
 /// Every library change schedules a save 0.5 s later (debounced). Once a save has landed, Owned Files
-/// that no open or Recent Shelf refers to are deleted. Code that creates an Owned File must therefore
+/// that no open or Recent Shelf refers to are deleted, unless the store has set aside an unreadable
+/// shelves file (which may still refer to them). Code that creates an Owned File must therefore
 /// add it to a Shelf in the same main-actor turn it creates it (no `await` in between); otherwise a
 /// cleanup in that gap would delete it.
 @MainActor
@@ -26,6 +27,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     private let thumbnails: ItemThumbnailProvider
     private var panels: [Shelf.ID: OpenPanel] = [:]
     private var pendingSave: Task<Void, Never>?
+    private var hasLoggedSkippedCleanup = false
 
     public init(library: ShelfLibrary, store: ShelfStore, ownedFiles: OwnedFileStore, preferences: Preferences) {
         self.library = library
@@ -134,15 +136,15 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         NSScreen.screens.first { NSMouseInRect(cursor, $0.frame, false) } ?? NSScreen.main
     }
 
-    /// A saved frame's top-left corner, where the Shelf reopens in its compact size; the center of the
-    /// main screen when there is no saved frame or it is no longer on any screen.
+    /// Where a Pinned or Recent Shelf reappears in its compact size: at its saved frame, kept fully on
+    /// screen, or centered on the main screen when the saved frame is on none.
     private static func restoredOrigin(of frame: CGRect?) -> CGPoint {
-        let size = ShelfCompactView.size
-        if let frame, NSScreen.screens.contains(where: { $0.frame.intersects(frame) }) {
-            return CGPoint(x: frame.minX, y: frame.maxY - size.height)
-        }
-        guard let visibleFrame = NSScreen.main?.visibleFrame else { return frame?.origin ?? .zero }
-        return CGPoint(x: visibleFrame.midX - size.width / 2, y: visibleFrame.midY - size.height / 2)
+        ShelfPlacement.restoredOrigin(
+            of: frame,
+            size: ShelfCompactView.size,
+            visibleFrames: NSScreen.screens.map(\.visibleFrame),
+            fallback: NSScreen.main?.visibleFrame
+        )
     }
 
     // MARK: Saving
@@ -162,6 +164,8 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
             } catch {
                 return
             }
+            // `saveNow()` may have cancelled this save after the sleep finished.
+            guard !Task.isCancelled else { return }
             self?.save()
         }
     }
@@ -174,6 +178,15 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         } catch {
             // The saved file may still refer to Owned Files the library dropped, so keep them all.
             Self.logger.error("Could not save Shelves: \(String(describing: error), privacy: .public)")
+            return
+        }
+        guard !store.hasSetAsideFiles else {
+            // A set-aside snapshot may refer to Owned Files this library doesn't know about. Keep them
+            // all until the user removes it; cleanup then resumes on the next save.
+            if !hasLoggedSkippedCleanup {
+                hasLoggedSkippedCleanup = true
+                Self.logger.notice("Skipping Owned File cleanup while an unreadable shelves file is set aside")
+            }
             return
         }
         do {

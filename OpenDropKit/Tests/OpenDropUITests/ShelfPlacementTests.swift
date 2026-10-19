@@ -28,3 +28,38 @@ private let laptopScreen = CGRect(x: 0, y: 0, width: 1440, height: 900)
     #expect(origin.x + 132 <= -8)
     #expect(origin.x >= -1912)
 }
+
+private let rightScreen = CGRect(x: 1440, y: 0, width: 1920, height: 1080)
+
+@Test func restoredPartlyOffScreenIsClampedFullyInside() {
+    // Saved frame hangs off the right edge of the laptop screen.
+    let saved = CGRect(x: 1400, y: 500, width: 132, height: 152)
+    let origin = ShelfPlacement.restoredOrigin(of: saved, size: compact, visibleFrames: [laptopScreen], fallback: laptopScreen)
+    let restored = CGRect(origin: origin, size: compact)
+    #expect(laptopScreen.insetBy(dx: ShelfPlacement.margin, dy: ShelfPlacement.margin).contains(restored))
+    #expect(origin.y == 500)
+}
+
+@Test func restoredOnScreenKeepsSavedTopLeft() {
+    let saved = CGRect(x: 100, y: 300, width: 420, height: 480)
+    let origin = ShelfPlacement.restoredOrigin(of: saved, size: compact, visibleFrames: [laptopScreen], fallback: laptopScreen)
+    #expect(origin == CGPoint(x: 100, y: 628))
+}
+
+@Test func restoredClampsOntoScreenItOverlapsMost() {
+    // Mostly on the right screen, a sliver on the laptop screen.
+    let saved = CGRect(x: 1420, y: 500, width: 132, height: 152)
+    let origin = ShelfPlacement.restoredOrigin(of: saved, size: compact, visibleFrames: [laptopScreen, rightScreen], fallback: laptopScreen)
+    #expect(rightScreen.insetBy(dx: ShelfPlacement.margin, dy: ShelfPlacement.margin).contains(CGRect(origin: origin, size: compact)))
+}
+
+@Test func restoredOffEveryScreenIsCenteredOnFallback() {
+    let saved = CGRect(x: -5000, y: -5000, width: 132, height: 152)
+    let origin = ShelfPlacement.restoredOrigin(of: saved, size: compact, visibleFrames: [laptopScreen], fallback: laptopScreen)
+    #expect(origin == CGPoint(x: 654, y: 374))
+}
+
+@Test func restoredWithoutFrameIsCenteredOnFallback() {
+    let origin = ShelfPlacement.restoredOrigin(of: nil, size: compact, visibleFrames: [laptopScreen], fallback: laptopScreen)
+    #expect(origin == CGPoint(x: 654, y: 374))
+}

@@ -60,6 +60,17 @@ public struct ShelfStore: Sendable {
         try data.write(to: fileURL, options: .atomic)
     }
 
+    /// True when a file `load` or `save` set aside (`<name>.unreadable-…`) is still next to the store's file.
+    /// Owned Files that only a set-aside snapshot refers to must not be cleaned up while it is there.
+    public var hasSetAsideFiles: Bool {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: fileURL.deletingLastPathComponent().path)) ?? []
+        return names.contains { $0.hasPrefix(setAsidePrefix) }
+    }
+
+    private var setAsidePrefix: String {
+        "\(fileURL.lastPathComponent).unreadable-"
+    }
+
     private func readFile() -> FileState {
         let data: Data
         do {
@@ -84,7 +95,7 @@ public struct ShelfStore: Sendable {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let name = "\(fileURL.lastPathComponent).unreadable-\(formatter.string(from: .now))"
+        let name = "\(setAsidePrefix)\(formatter.string(from: .now))"
 
         let directory = fileURL.deletingLastPathComponent()
         var destination = directory.appendingPathComponent(name)
