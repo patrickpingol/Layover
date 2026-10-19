@@ -43,8 +43,8 @@ In the container paths below, `<bundle id>` is `dev.mauipingol.Layover`. `defaul
 - [ ] Drop Finder files onto a Shelf. Expected: they appear as Items.
 - [ ] Drop the same file again. Expected: the existing Item bounces (compact: the stack; expanded: the cell) and no duplicate is added.
 - [ ] Drop selected text from Safari. Expected: a `.txt` Item named after its first line.
-- [ ] Drop a link from a browser address bar or page. Expected: a `.webloc` Item titled from the page title.
-- [ ] Drop an image from a web page. Expected: an image Item. Chrome and Safari put a URL on the pasteboard, so a link Item instead of an image is acceptable (URL-first precedence).
+- [ ] Drop a link from a browser address bar or page. Expected: a `.webloc` Item titled from the page title. Safari may deliver the link as a promised `.webloc` file instead; that is acceptable as long as a `.webloc` named after the page appears.
+- [ ] Drop an image from a web page. Expected: an image Item (image data wins over the page URL Chrome/Safari also put on the pasteboard).
 - [ ] Drop a Mail attachment or another promised file. Expected: it arrives as a `.received` Owned File.
 - [ ] Hover a drag over a Shelf. Expected: the accent border and tint appear and clear on exit and on drop; unrelated drags show nothing.
 - [ ] Drop onto a pinned and an expanded Shelf, then restart the app. Expected: Owned File Items are still there (saved and not cleaned up).
@@ -61,7 +61,8 @@ Record what Finder reports for each of these.
 - [ ] Drag one Item into a Mail compose window. Expected: it attaches, the Item stays on the Shelf, the original is untouched (Review Focus 1).
 - [ ] Drag an Item into a browser upload field and into Slack. Expected: the same: the Item stays, the original is untouched (Review Focus 1).
 - [ ] Drag to another volume. Expected: copied, the Items stay.
-- [ ] Command-drag to Finder, and drop on the Dock Trash. Note the operation Finder reports. Expected: no Item is left dangling; an Item whose file went away shows as unavailable (not a ghost), a moved Item is gone, and a file in the Trash counts as deleted (Review Focus 2).
+- [ ] Command-drag to Finder. Note the operation Finder reports. Expected: no Item is left dangling; an Item whose file went away shows as unavailable (not a ghost), a moved Item is gone, and a file in the Trash counts as deleted (Review Focus 2).
+- [ ] Drag an Item onto the Dock Trash. Expected: the Trash shows no drop target (Layover never offers a delete operation) and the Item stays on the Shelf.
 - [ ] Drag an Item or the Handle onto another Shelf. Expected: it is copied there and the source Shelf is untouched; an Owned File is copied to a new Owned File of its own on that Shelf.
 - [ ] Drag an Owned Item (a dropped text or image) from Shelf A to Shelf B, then move it from A to Finder. Expected: B's Item still opens.
 - [ ] In the expanded grid, click, then Cmd-click and Shift-click Items. Expected: click selects (highlight); Cmd/Shift-click multi-selects.
@@ -112,6 +113,7 @@ Record what Finder reports for each of these.
 - [ ] Set Shake sensitivity to Off, then Normal, High and Highest. Expected: Off stops Shake immediately; the others change the thresholds with no relaunch.
 - [ ] Record a new shortcut (for example ⌃⌥⌘K). Expected: it works at once, the menu item shows it, and the old combo no longer opens a Shelf.
 - [ ] While recording, press the current combo, then Esc, then Backspace. Expected: the current combo is recorded rather than opening a Shelf; Esc restores the old one; Backspace clears it (the menu item loses its key).
+- [ ] While recording, press ⌘C, then ⌘⇧K. Expected: "Use ⌃ or ⌥ in the shortcut." shows, recording continues and the current shortcut is unchanged.
 - [ ] Record a combo macOS uses (for example one listed in Keyboard Shortcuts), then one held by another app. Expected: "This shortcut is already used by macOS." and "…used by another app." respectively, and the preference is kept.
 - [ ] In Ignored Apps, use + and −. Expected: + picks apps from `/Applications` (multi-select), duplicates are skipped, rows show icon and name; − removes the selection; a Shake over an ignored app is ignored live.
 - [ ] Toggle "Close Shelf when emptied". Expected: behavior changes live.

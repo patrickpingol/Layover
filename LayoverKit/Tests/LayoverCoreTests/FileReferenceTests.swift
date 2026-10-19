@@ -89,6 +89,32 @@ private func samePath(_ a: URL, _ b: URL) -> Bool {
     }
 }
 
+private func resolve(
+    _ reference: FileReference, mounted: Bool, failingWith error: any Error
+) -> FileResolution {
+    reference.resolve(volumes: FixedVolumes(mounted: mounted), securityScoped: false) { _, _ in throw error }
+}
+
+@Test func noSuchFileErrorOnMountedVolumeIsDeleted() throws {
+    try withTempDirectory { dir in
+        let reference = try FileReference.make(for: try makeFile(in: dir), securityScoped: false)
+
+        #expect(resolve(reference, mounted: true, failingWith: CocoaError(.fileNoSuchFile)) == .deleted)
+        #expect(resolve(reference, mounted: true, failingWith: CocoaError(.fileReadNoSuchFile)) == .deleted)
+        #expect(resolve(reference, mounted: false, failingWith: CocoaError(.fileNoSuchFile)) == .unavailable)
+    }
+}
+
+@Test func otherResolutionErrorsAreUnavailableEvenOnAMountedVolume() throws {
+    try withTempDirectory { dir in
+        let reference = try FileReference.make(for: try makeFile(in: dir), securityScoped: false)
+
+        #expect(resolve(reference, mounted: true, failingWith: CocoaError(.fileReadNoPermission)) == .unavailable)
+        #expect(resolve(reference, mounted: true, failingWith: CocoaError(.fileReadUnknown)) == .unavailable)
+        #expect(resolve(reference, mounted: true, failingWith: POSIXError(.EIO)) == .unavailable)
+    }
+}
+
 @Test func referenceRoundTripsThroughJSON() throws {
     try withTempDirectory { dir in
         let url = try makeFile(in: dir)

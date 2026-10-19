@@ -68,13 +68,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         coordinator.restorePinnedShelves()
         askAboutLaunchAtLoginOnce()
-
-        #if DEBUG
-        // `-LayoverOpenShelfOnLaunch YES` opens a Shelf at launch, so a launch check exercises the panel.
-        if UserDefaults.standard.bool(forKey: "LayoverOpenShelfOnLaunch") {
-            coordinator.openNewShelf(at: NSEvent.mouseLocation)
-        }
-        #endif
     }
 
     /// Opening Layover again, for example from Finder while its menu-bar icon is hidden, shows Settings.

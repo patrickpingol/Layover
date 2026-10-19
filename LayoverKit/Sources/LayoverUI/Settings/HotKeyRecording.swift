@@ -9,14 +9,16 @@ enum HotKeyRecording {
         /// ⌫: remove the shortcut.
         case clear
         case accept(KeyCombo)
+        /// ⌘ without ⌃ or ⌥ (⌘C, ⌘⇧S, ...) belongs to the frontmost app's menus, not a global hot key.
+        case needsControlOrOption
         /// The system already uses this combo.
         case rejectedBySystem
         /// Not a usable combo; keep recording.
         case ignored
     }
 
-    /// A shortcut needs at least one of ⌘⌃⌥, so it can't be typed by accident.
-    private static let requiredModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
+    /// A global hot key needs ⌃ or ⌥, so it can't be typed by accident or take over an app's ⌘ shortcut.
+    private static let requiredModifiers: NSEvent.ModifierFlags = [.control, .option]
     private static let clearKeyCodes = [kVK_Delete, kVK_ForwardDelete].map(UInt16.init)
 
     static func outcome(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, isTaken: (KeyCombo) -> Bool) -> Outcome {
@@ -25,7 +27,10 @@ enum HotKeyRecording {
             if keyCode == UInt16(kVK_Escape) { return .cancel }
             if clearKeyCodes.contains(keyCode) { return .clear }
         }
-        guard !modifiers.isDisjoint(with: requiredModifiers) else { return .ignored }
+        guard !modifiers.isDisjoint(with: requiredModifiers) else {
+            // A bare key or ⇧-key is just typing; a ⌘ combo is a shortcut attempt worth explaining.
+            return modifiers.contains(.command) ? .needsControlOrOption : .ignored
+        }
         let combo = KeyCombo(keyCode: UInt32(keyCode), carbonModifiers: carbonModifiers(from: modifiers))
         return isTaken(combo) ? .rejectedBySystem : .accept(combo)
     }

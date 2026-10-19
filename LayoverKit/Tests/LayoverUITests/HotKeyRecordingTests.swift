@@ -13,10 +13,23 @@ private func outcome(
     HotKeyRecording.outcome(keyCode: UInt16(keyCode), modifiers: modifiers, isTaken: isTaken)
 }
 
-@Test func aKeyWithCommandControlOrOptionIsAccepted() {
-    #expect(outcome(kVK_ANSI_K, .command) == .accept(KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(cmdKey))))
+@Test func aKeyWithControlOrOptionIsAccepted() {
     #expect(outcome(kVK_ANSI_K, .control) == .accept(KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(controlKey))))
     #expect(outcome(kVK_ANSI_K, .option) == .accept(KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(optionKey))))
+    #expect(outcome(kVK_ANSI_K, [.command, .option]) == .accept(KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(cmdKey | optionKey))))
+    #expect(outcome(kVK_ANSI_K, [.control, .shift]) == .accept(KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(controlKey | shiftKey))))
+}
+
+@Test func theDefaultNewShelfComboIsAccepted() {
+    #expect(outcome(kVK_ANSI_N, [.control, .option, .command]) == .accept(.defaultNewShelf))
+}
+
+@Test func aCommandComboWithoutControlOrOptionIsRefusedWithAReason() {
+    let ask: (KeyCombo) -> Bool = { _ in Issue.record("isTaken must not be called"); return false }
+
+    #expect(outcome(kVK_ANSI_C, .command, isTaken: ask) == .needsControlOrOption)
+    #expect(outcome(kVK_ANSI_K, [.command, .shift], isTaken: ask) == .needsControlOrOption)
+    #expect(outcome(kVK_Escape, .command, isTaken: ask) == .needsControlOrOption)
 }
 
 @Test func theAcceptedComboCarriesEveryModifierIncludingShift() {
@@ -30,9 +43,9 @@ private func outcome(
 }
 
 @Test func capsLockFunctionAndNumericPadDontChangeAnAcceptedCombo() {
-    let noisy: NSEvent.ModifierFlags = [.command, .capsLock, .function, .numericPad]
+    let noisy: NSEvent.ModifierFlags = [.control, .capsLock, .function, .numericPad]
 
-    #expect(outcome(kVK_F5, noisy) == .accept(KeyCombo(keyCode: UInt32(kVK_F5), carbonModifiers: UInt32(cmdKey))))
+    #expect(outcome(kVK_F5, noisy) == .accept(KeyCombo(keyCode: UInt32(kVK_F5), carbonModifiers: UInt32(controlKey))))
 }
 
 @Test func aKeyWithoutCommandControlOrOptionIsIgnored() {
@@ -48,14 +61,14 @@ private func outcome(
 }
 
 @Test func escapeAndBackspaceWithAModifierAreCombosNotCommands() {
-    #expect(outcome(kVK_Escape, .command) == .accept(KeyCombo(keyCode: UInt32(kVK_Escape), carbonModifiers: UInt32(cmdKey))))
+    #expect(outcome(kVK_Escape, .control) == .accept(KeyCombo(keyCode: UInt32(kVK_Escape), carbonModifiers: UInt32(controlKey))))
     #expect(outcome(kVK_Delete, .option) == .accept(KeyCombo(keyCode: UInt32(kVK_Delete), carbonModifiers: UInt32(optionKey))))
 }
 
 @Test func aComboTheSystemUsesIsRejected() {
-    let taken = KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(cmdKey))
+    let taken = KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(controlKey))
 
-    #expect(outcome(kVK_ANSI_K, .command, isTaken: { $0 == taken }) == .rejectedBySystem)
+    #expect(outcome(kVK_ANSI_K, .control, isTaken: { $0 == taken }) == .rejectedBySystem)
     #expect(outcome(kVK_ANSI_K, .option, isTaken: { $0 == taken }) == .accept(KeyCombo(keyCode: UInt32(kVK_ANSI_K), carbonModifiers: UInt32(optionKey))))
 }
 

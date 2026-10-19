@@ -442,13 +442,24 @@
         }
       }
     },
-    "Press a shortcut with ⌘, ⌃ or ⌥. Esc cancels, ⌫ clears.": {
+    "Press a shortcut with ⌃ or ⌥. Esc cancels, ⌫ clears.": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Press a shortcut with ⌘, ⌃ or ⌥. Esc cancels, ⌫ clears."
+            "value": "Press a shortcut with ⌃ or ⌥. Esc cancels, ⌫ clears."
+          }
+        }
+      }
+    },
+    "Use ⌃ or ⌥ in the shortcut.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use ⌃ or ⌥ in the shortcut."
           }
         }
       }

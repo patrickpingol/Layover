@@ -31,6 +31,15 @@ swift test --package-path LayoverKit \
   -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing
 ```
 
+## Troubleshooting
+
+Layover keeps its data in its sandbox container, at `~/Library/Containers/dev.mauipingol.Layover/Data/Library/Application Support/dev.mauipingol.Layover/`:
+
+- `shelves.json`: the saved Shelves.
+- `OwnedFiles/`: the Owned Files (dropped text, links, images and promised files), one folder per file.
+
+A `shelves.json.unreadable-<timestamp>` file next to `shelves.json` means Layover found a save it could not read (damaged, or written by a newer version) and set it aside rather than overwrite it. While such a file exists, Owned File cleanup is paused, because the set-aside save may refer to Owned Files the current Shelves don't. Remove the file (after recovering anything you need from it) and cleanup resumes on the next save.
+
 ## Docs
 
 - [GLOSSARY.md](GLOSSARY.md): the project's vocabulary (Shelf, Item, Handle, Shake, ...)

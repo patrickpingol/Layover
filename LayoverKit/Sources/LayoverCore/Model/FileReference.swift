@@ -23,15 +23,37 @@ public struct FileReference: Codable, Hashable, Sendable {
     /// `.available` carries a refreshed reference exactly when the bookmark was stale or the path changed.
     /// If a new bookmark can't be made, the refreshed reference keeps the old bookmark data with the new path.
     ///
+    /// `.deleted` means the file is gone for good: it is in the Trash, or its volume is mounted and the file
+    /// does not exist (the bookmark resolved to a missing file, or resolving failed with "no such file").
+    /// Any other resolution failure (permission, sandbox, I/O) and any file on a volume that isn't mounted
+    /// is `.unavailable`, so the Item stays.
+    ///
     /// With `securityScoped: true` the caller must call `startAccessingSecurityScopedResource()` on the
     /// returned URL, and `stopAccessingSecurityScopedResource()` when done, before using the file.
     public func resolve(volumes: MountedVolumes, securityScoped: Bool = true) -> FileResolution {
+        resolve(volumes: volumes, securityScoped: securityScoped) { bookmark, options in
+            var isStale = false
+            let url = try URL(resolvingBookmarkData: bookmark, options: options, relativeTo: nil, bookmarkDataIsStale: &isStale)
+            return (url, isStale)
+        }
+    }
+
+    /// `resolveBookmark` stands in for `URL(resolvingBookmarkData:)`, so tests can make resolution fail
+    /// with a chosen error.
+    func resolve(
+        volumes: MountedVolumes,
+        securityScoped: Bool,
+        resolveBookmark: (Data, URL.BookmarkResolutionOptions) throws -> (url: URL, isStale: Bool)
+    ) -> FileResolution {
         var options: URL.BookmarkResolutionOptions = [.withoutUI, .withoutMounting]
         if securityScoped { options.insert(.withSecurityScope) }
 
-        var isStale = false
-        guard let url = try? URL(resolvingBookmarkData: bookmark, options: options, relativeTo: nil, bookmarkDataIsStale: &isStale) else {
-            return missing(volumes)
+        let url: URL
+        let isStale: Bool
+        do {
+            (url, isStale) = try resolveBookmark(bookmark, options)
+        } catch {
+            return Self.isNoSuchFile(error) ? missing(volumes) : .unavailable
         }
 
         let isAccessing = securityScoped && url.startAccessingSecurityScopedResource()
@@ -49,6 +71,11 @@ public struct FileReference: Codable, Hashable, Sendable {
 
     private func missing(_ volumes: MountedVolumes) -> FileResolution {
         volumes.isMounted(volumeUUID: identity.volumeUUID) ? .deleted : .unavailable
+    }
+
+    private static func isNoSuchFile(_ error: any Error) -> Bool {
+        guard let error = error as? CocoaError else { return false }
+        return error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile
     }
 
     /// True when any path component is a Trash folder (`~/.Trash`, or `/.Trashes/<uid>` on other volumes).

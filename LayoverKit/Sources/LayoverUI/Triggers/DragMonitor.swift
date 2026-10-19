@@ -77,6 +77,8 @@ public final class DragMonitor {
             isDragging = true
             watcher.begin()
         }
+        // A drag that starts on a Shelf never triggers a Shake because global monitors never receive this app's
+        // own events. `isOverShelf` is a seam for tests and a belt-and-braces check, not the guarantee.
         let sample = DragSample(
             location: location,
             time: time,

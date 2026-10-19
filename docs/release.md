@@ -6,11 +6,16 @@ Layover is distributed outside the Mac App Store, signed with a Developer ID cer
 
 ### Sparkle signing key
 
-Info.plist ships a placeholder `SUPublicEDKey` (`REPLACE_WITH_PUBLIC_ED_KEY_FROM_GENERATE_KEYS`). Updates cannot be verified until you replace it.
+Info.plist ships without an `SUPublicEDKey`. Updates cannot be verified until you add it. (Sparkle rejects a key it cannot decode and shows an "Unable to Check For Updates" alert at launch, so don't add a placeholder.)
 
 1. Build the app once with `-derivedDataPath .build/xcode` (`xcodebuild -project Layover.xcodeproj -scheme Layover -configuration Debug -derivedDataPath .build/xcode build`) so the Sparkle package is resolved, then find its tools in `.build/xcode/SourcePackages/artifacts/sparkle/Sparkle/bin/` (`generate_keys`, `generate_appcast`, `sign_update`). Built from Xcode's default DerivedData instead, they are in `~/Library/Developer/Xcode/DerivedData/Layover-*/SourcePackages/artifacts/sparkle/Sparkle/bin/`. The commands below assume the `.build/xcode` path.
 2. Run `generate_keys`. It creates an EdDSA key pair, stores the **private key in your login keychain**, and prints the public key.
-3. Paste the printed public key into `App/Resources/Info.plist` as the value of `SUPublicEDKey`.
+3. Add the printed public key to `App/Resources/Info.plist`, next to `SUFeedURL`:
+
+   ```xml
+   <key>SUPublicEDKey</key>
+   <string>PUBLIC_KEY_PRINTED_BY_GENERATE_KEYS</string>
+   ```
 4. Back up the private key outside the repo: `generate_keys -x ~/Safe/layover-sparkle-private-key`. Keep that file in a password manager or encrypted storage. Never commit it. Losing it means existing installs cannot receive updates.
 
 ### Appcast hosting
@@ -35,10 +40,10 @@ Store notarization credentials once: `xcrun notarytool store-credentials layover
 ## Each release
 
 1. Bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`, then `xcodegen generate`.
-2. Check the Sparkle key is set. This fails while the placeholder is still in Info.plist:
+2. Check the Sparkle key is set. This fails while `SUPublicEDKey` is missing from Info.plist:
 
    ```sh
-   grep -q REPLACE_WITH_PUBLIC_ED_KEY App/Resources/Info.plist && { echo "Set SUPublicEDKey first"; exit 1; }
+   /usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' App/Resources/Info.plist >/dev/null 2>&1 || { echo "Set SUPublicEDKey first"; exit 1; }
    ```
 
    Check `SUFeedURL` is not still `https://example.invalid/appcast.xml` as well.

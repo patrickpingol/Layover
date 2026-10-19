@@ -54,6 +54,8 @@ final class HotKeyRecorderModel: ObservableObject {
         case .clear:
             stopRecording()
             preferences.newShelfHotKey = nil
+        case .needsControlOrOption:
+            errorMessage = String(localized: "Use ⌃ or ⌥ in the shortcut.")
         case .rejectedBySystem:
             errorMessage = String(localized: "This shortcut is already used by macOS.")
         case .accept(let combo):
@@ -75,7 +77,7 @@ struct HotKeyRecorder: View {
         VStack(alignment: .trailing, spacing: 4) {
             Button(buttonTitle) { model.toggle() }
             if model.isRecording {
-                Text(String(localized: "Press a shortcut with ⌘, ⌃ or ⌥. Esc cancels, ⌫ clears."))
+                Text(String(localized: "Press a shortcut with ⌃ or ⌥. Esc cancels, ⌫ clears."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

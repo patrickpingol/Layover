@@ -163,6 +163,20 @@ private let pngSignature = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
     }
 }
 
+@Test func aNameThatIsOneCharacterLongerThan255BytesFallsBackToFile() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir)
+        // One grapheme cluster: "e" followed by 200 combining acute accents (2 bytes each).
+        let huge = "e" + String(repeating: "\u{0301}", count: 200)
+        #expect(huge.count == 1)
+
+        let file = try store.makeText(huge)
+
+        #expect(file.filename == "File.txt")
+        #expect(FileManager.default.fileExists(atPath: store.url(for: file).path))
+    }
+}
+
 @Test func controlCharactersStrippedFromEveryNameSource() throws {
     try withTempDirectory { dir in
         let store = OwnedFileStore(directory: dir)

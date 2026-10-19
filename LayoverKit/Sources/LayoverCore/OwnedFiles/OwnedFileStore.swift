@@ -148,10 +148,11 @@ public struct OwnedFileStore: Sendable {
     }
 
     /// Drops trailing Characters until `name` plus its extension fits the filesystem's 255-byte limit.
+    /// Returns `File` if nothing is left (a single Character can be longer than the limit).
     private static func fitted(_ name: String, extension ext: String) -> String {
         let budget = maxFilenameBytes - (ext.isEmpty ? 0 : ext.utf8.count + 1)
         var fitted = name
         while fitted.utf8.count > budget { fitted.removeLast() }
-        return fitted
+        return fitted.isEmpty ? "File" : fitted
     }
 }
