@@ -130,3 +130,49 @@ private let pngSignature = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         #expect(removed == 0)
     }
 }
+
+@Test func separatorsFollowedByCombiningMarksStayInsideOwnFolder() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir)
+
+        for input in ["a/\u{0301}b", "x:\u{0301}y", "../\u{0301}../x"] {
+            let file = try store.makeText(input)
+
+            #expect(!file.filename.unicodeScalars.contains { $0 == "/" || $0 == ":" })
+            let url = store.url(for: file)
+            #expect(url.deletingLastPathComponent() == dir.appendingPathComponent(file.id.uuidString, isDirectory: true))
+            #expect(FileManager.default.fileExists(atPath: url.path))
+        }
+        let topLevel = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(topLevel.count == 3)
+    }
+}
+
+@Test func filenameNeverExceeds255Bytes() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir)
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}"
+
+        let file = try store.makeText(String(repeating: family, count: 40))
+
+        #expect(file.filename.utf8.count <= 255)
+        #expect(file.filename.hasSuffix(".txt"))
+        #expect(FileManager.default.fileExists(atPath: store.url(for: file).path))
+        let name = String(file.filename.dropLast(4))
+        #expect(name == String(repeating: family, count: name.count))
+    }
+}
+
+@Test func controlCharactersStrippedFromEveryNameSource() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir)
+
+        let link = try store.makeLink(URL(string: "https://example.com")!, title: "My\nPa\u{0}ge")
+        let image = try store.makeImage(pngData: tinyPNG, suggestedName: "Shot\r\n\u{0}1")
+        let text = try store.makeText("Hel\u{0}lo\u{7}\nworld")
+
+        #expect(link.filename == "MyPage.webloc")
+        #expect(image.filename == "Shot1.png")
+        #expect(text.filename == "Hello.txt")
+    }
+}

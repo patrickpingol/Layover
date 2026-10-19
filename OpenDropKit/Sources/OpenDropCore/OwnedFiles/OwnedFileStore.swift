@@ -6,6 +6,7 @@ import Foundation
 /// and removing the `<id>` directory removes the whole file.
 public struct OwnedFileStore: Sendable {
     private static let maxNameLength = 40
+    private static let maxFilenameBytes = 255
 
     public let directory: URL
 
@@ -64,7 +65,7 @@ public struct OwnedFileStore: Sendable {
     }
 
     private func write(_ data: Data, named name: String, extension ext: String, kind: OwnedFile.Kind) throws -> OwnedFile {
-        let file = OwnedFile(id: UUID(), filename: "\(name).\(ext)", kind: kind)
+        let file = OwnedFile(id: UUID(), filename: "\(Self.fitted(name, extension: ext)).\(ext)", kind: kind)
         let fileManager = FileManager.default
         let folder = url(for: file).deletingLastPathComponent()
         try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -77,12 +78,24 @@ public struct OwnedFileStore: Sendable {
         return file
     }
 
-    /// Replaces `/` and `:` with `-`, trims whitespace and caps the length.
+    /// Replaces `/` and `:` with `-`, drops control characters (newlines, NUL, ...), trims whitespace
+    /// and caps the length. Works on unicode scalars so a combining mark after `/` cannot hide it.
     /// Returns nil if nothing is left.
     private static func sanitized(_ raw: String) -> String? {
-        let replaced = String(raw.map { $0 == "/" || $0 == ":" ? "-" : $0 })
-        let trimmed = String(replaced.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxNameLength))
+        var scalars = String.UnicodeScalarView()
+        for scalar in raw.unicodeScalars where scalar.properties.generalCategory != .control {
+            scalars.append(scalar == "/" || scalar == ":" ? "-" : scalar)
+        }
+        let trimmed = String(String(scalars).trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxNameLength))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Drops trailing Characters until `name` plus its extension fits the filesystem's 255-byte limit.
+    private static func fitted(_ name: String, extension ext: String) -> String {
+        let budget = maxFilenameBytes - ext.utf8.count - 1
+        var fitted = name
+        while fitted.utf8.count > budget { fitted.removeLast() }
+        return fitted
     }
 }
