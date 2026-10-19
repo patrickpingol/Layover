@@ -1,15 +1,21 @@
 import AppKit
 import OpenDropCore
+import os
 
 /// One Shelf's content: the close, pin and expand buttons above either the compact stack or the grid.
 /// It only presents; the coordinator owns the Shelf and applies the button actions.
 @MainActor
 final class ShelfViewController: NSViewController {
     private static let headerHeight: CGFloat = 28
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "OpenDrop", category: "Drops")
 
     var onClose: () -> Void = {}
     var onTogglePin: () -> Void = {}
+    /// Adds dropped contents to this Shelf and reports what happened to each. Called with no
+    /// suspension since the contents were created, which Owned File cleanup relies on.
+    var onAdd: ([ItemContent]) -> [Shelf.AddOutcome] = { _ in [] }
 
+    private let importer: ItemImporter
     private var shelf: Shelf
     private var isExpanded = false
 
@@ -19,8 +25,9 @@ final class ShelfViewController: NSViewController {
     private let pinButton = ShelfViewController.makeButton()
     private let expandButton = ShelfViewController.makeButton()
 
-    init(shelf: Shelf, thumbnails: ItemThumbnailProvider) {
+    init(shelf: Shelf, thumbnails: ItemThumbnailProvider, importer: ItemImporter) {
         self.shelf = shelf
+        self.importer = importer
         compactView = ShelfCompactView(thumbnails: thumbnails)
         gridController = ShelfGridViewController(thumbnails: thumbnails)
         super.init(nibName: nil, bundle: nil)
@@ -43,7 +50,8 @@ final class ShelfViewController: NSViewController {
     private var showsGrid: Bool { isExpanded && !shelf.items.isEmpty }
 
     override func loadView() {
-        let root = NSView(frame: CGRect(origin: .zero, size: ShelfCompactView.size))
+        let root = ShelfDropView(frame: CGRect(origin: .zero, size: ShelfCompactView.size))
+        root.onDrop = { [weak self] pasteboard in self?.handleDrop(pasteboard) ?? false }
         addChild(gridController)
 
         closeButton.action = #selector(close)
@@ -101,6 +109,45 @@ final class ShelfViewController: NSViewController {
             label: showsGrid ? String(localized: "Collapse") : String(localized: "Expand")
         )
         expandButton.isEnabled = !shelf.items.isEmpty
+    }
+
+    // MARK: Dropping
+
+    private func handleDrop(_ pasteboard: NSPasteboard) -> Bool {
+        // Receiving promised files must start now, while the dragging pasteboard is still valid.
+        if let reception = importer.beginReceivingPromises(from: pasteboard) {
+            Task { [weak self] in
+                do {
+                    try await reception.receive { self?.add($0) }
+                } catch {
+                    Self.logger.error("Could not receive promised files: \(String(describing: error), privacy: .public)")
+                }
+            }
+            return true
+        }
+        do {
+            let contents = try importer.contents(from: pasteboard)
+            guard !contents.isEmpty else { return false }
+            add(contents)
+            return true
+        } catch {
+            Self.logger.error("Could not import the dropped content: \(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+
+    /// Adds `contents` to the Shelf; an Item that was already there bounces instead of being added again.
+    private func add(_ contents: [ItemContent]) {
+        let outcomes = onAdd(contents)
+        let duplicates = outcomes.compactMap { outcome -> Item.ID? in
+            if case let .duplicate(id) = outcome { id } else { nil }
+        }
+        guard !duplicates.isEmpty else { return }
+        if showsGrid {
+            for id in duplicates { gridController.bounce(id) }
+        } else {
+            compactView.bounceStack()
+        }
     }
 
     // MARK: Actions

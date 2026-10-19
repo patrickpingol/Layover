@@ -70,6 +70,11 @@ final class ShelfCompactView: NSView {
         countLabel.stringValue = String(localized: "\(items.count) items")
         stack.display(items, using: thumbnails)
     }
+
+    /// Bounces the stack. It shows at most the three newest Items, so it stands in for any of them.
+    func bounceStack() {
+        stack.bounce()
+    }
 }
 
 /// Up to three thumbnails fanned out, the newest Item on top. A click toggles the Shelf's look;

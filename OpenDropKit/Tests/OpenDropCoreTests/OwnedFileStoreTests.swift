@@ -176,3 +176,51 @@ private let pngSignature = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         #expect(text.filename == "Hello.txt")
     }
 }
+
+@Test func adoptReceivedFileMovesIntoOwnFolder() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+        let source = dir.appendingPathComponent("photo.jpg")
+        try Data("jpeg".utf8).write(to: source)
+
+        let file = try store.adoptReceivedFile(at: source)
+
+        #expect(file.kind == .received)
+        #expect(file.filename == "photo.jpg")
+        let url = store.url(for: file)
+        #expect(url.deletingLastPathComponent() == store.directory.appendingPathComponent(file.id.uuidString, isDirectory: true))
+        #expect(try Data(contentsOf: url) == Data("jpeg".utf8))
+        #expect(!FileManager.default.fileExists(atPath: source.path))
+    }
+}
+
+@Test func adoptReceivedFileSanitizesFilenameKeepingExtension() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+        let source = dir.appendingPathComponent("My\nRe:port.pdf")
+        try Data("pdf".utf8).write(to: source)
+        let longSource = dir.appendingPathComponent(String(repeating: "a", count: 100) + ".pdf")
+        try Data("pdf".utf8).write(to: longSource)
+
+        let sanitized = try store.adoptReceivedFile(at: source)
+        let long = try store.adoptReceivedFile(at: longSource)
+
+        #expect(sanitized.filename == "MyRe-port.pdf")
+        #expect(long.filename == String(repeating: "a", count: 40) + ".pdf")
+        #expect(FileManager.default.fileExists(atPath: store.url(for: sanitized).path))
+        #expect(FileManager.default.fileExists(atPath: store.url(for: long).path))
+    }
+}
+
+@Test func adoptReceivedFileFailureLeavesNoFolderBehind() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+
+        #expect(throws: (any Error).self) {
+            try store.adoptReceivedFile(at: dir.appendingPathComponent("missing.txt"))
+        }
+
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: store.directory.path)) ?? []
+        #expect(entries.isEmpty)
+    }
+}

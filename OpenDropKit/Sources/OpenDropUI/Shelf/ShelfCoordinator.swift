@@ -25,6 +25,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     private let ownedFiles: OwnedFileStore
     private let preferences: Preferences
     private let thumbnails: ItemThumbnailProvider
+    private let importer: ItemImporter
     private var panels: [Shelf.ID: OpenPanel] = [:]
     private var pendingSave: Task<Void, Never>?
     private var hasLoggedSkippedCleanup = false
@@ -35,6 +36,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         self.ownedFiles = ownedFiles
         self.preferences = preferences
         thumbnails = ItemThumbnailProvider(ownedFiles: ownedFiles)
+        importer = ItemImporter(ownedFiles: ownedFiles)
     }
 
     // MARK: Lifecycle
@@ -76,6 +78,17 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         panels.values.contains { $0.panel.windowNumber == number }
     }
 
+    /// Adds dropped `contents` to an open Shelf and returns what happened to each, in order. A Shelf
+    /// that isn't open takes nothing and returns no outcomes.
+    @discardableResult
+    public func add(_ contents: [ItemContent], to shelfID: Shelf.ID) -> [Shelf.AddOutcome] {
+        guard var shelf = openShelf(shelfID) else { return [] }
+        let outcomes = contents.map { shelf.add($0) }
+        mutate { $0.update(shelf) }
+        panels[shelfID]?.controller.display(shelf)
+        return outcomes
+    }
+
     private func close(_ id: Shelf.ID) {
         guard let open = panels.removeValue(forKey: id) else { return }
         open.panel.delegate = nil
@@ -94,7 +107,8 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
 
     private func show(_ shelf: Shelf, at origin: CGPoint) {
         let id = shelf.id
-        let controller = ShelfViewController(shelf: shelf, thumbnails: thumbnails)
+        let controller = ShelfViewController(shelf: shelf, thumbnails: thumbnails, importer: importer)
+        controller.onAdd = { [weak self] contents in self?.add(contents, to: id) ?? [] }
         controller.onClose = { [weak self] in self?.close(id) }
         controller.onTogglePin = { [weak self] in self?.togglePin(id) }
 

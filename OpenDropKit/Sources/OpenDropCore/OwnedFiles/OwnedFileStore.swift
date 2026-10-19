@@ -43,6 +43,27 @@ public struct OwnedFileStore: Sendable {
         return try write(pngData, named: name, extension: "png", kind: .image)
     }
 
+    /// Moves a file another app promised (already received somewhere else, such as a staging directory)
+    /// into its own Owned File folder. The filename is sanitized like any other, keeping its extension.
+    /// On failure nothing is left behind and the source stays where it was.
+    public func adoptReceivedFile(at source: URL) throws -> OwnedFile {
+        let ext = Self.sanitized(source.pathExtension) ?? ""
+        let base = Self.sanitized(source.deletingPathExtension().lastPathComponent) ?? "File"
+        let fitted = Self.fitted(base, extension: ext)
+        let file = OwnedFile(id: UUID(), filename: ext.isEmpty ? fitted : "\(fitted).\(ext)", kind: .received)
+
+        let fileManager = FileManager.default
+        let folder = url(for: file).deletingLastPathComponent()
+        try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        do {
+            try fileManager.moveItem(at: source, to: url(for: file))
+        } catch {
+            try? fileManager.removeItem(at: folder)
+            throw error
+        }
+        return file
+    }
+
     /// Deletes every Owned File whose id is not in `ids` and returns how many were deleted.
     /// Entries that are not a directory named by a UUID are left alone.
     @discardableResult
@@ -93,7 +114,7 @@ public struct OwnedFileStore: Sendable {
 
     /// Drops trailing Characters until `name` plus its extension fits the filesystem's 255-byte limit.
     private static func fitted(_ name: String, extension ext: String) -> String {
-        let budget = maxFilenameBytes - ext.utf8.count - 1
+        let budget = maxFilenameBytes - (ext.isEmpty ? 0 : ext.utf8.count + 1)
         var fitted = name
         while fitted.utf8.count > budget { fitted.removeLast() }
         return fitted

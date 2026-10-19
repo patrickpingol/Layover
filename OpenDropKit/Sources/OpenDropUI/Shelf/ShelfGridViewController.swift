@@ -57,6 +57,12 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
         collectionView.reloadData()
     }
 
+    /// Bounces the cell of the Item with `id`, if it is on screen.
+    func bounce(_ id: Item.ID) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        collectionView.item(at: IndexPath(item: index, section: 0))?.view.bounce()
+    }
+
     // MARK: NSCollectionViewDataSource
 
     func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
