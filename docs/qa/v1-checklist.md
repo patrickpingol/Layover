@@ -62,7 +62,7 @@ Record what Finder reports for each of these.
 - [ ] Drag an Item into a browser upload field and into Slack. Expected: the same: the Item stays, the original is untouched (Review Focus 1).
 - [ ] Drag to another volume. Expected: copied, the Items stay.
 - [ ] Command-drag to Finder, and drop on the Dock Trash. Note the operation Finder reports. Expected: no Item is left dangling; an Item whose file went away shows as unavailable (not a ghost), a moved Item is gone, and a file in the Trash counts as deleted (Review Focus 2).
-- [ ] Drag an Item or the Handle onto another Shelf. Expected: it is copied there and the source Shelf is untouched; an Owned File becomes the same Owned File there.
+- [ ] Drag an Item or the Handle onto another Shelf. Expected: it is copied there and the source Shelf is untouched; an Owned File is copied to a new Owned File of its own on that Shelf.
 - [ ] Drag an Owned Item (a dropped text or image) from Shelf A to Shelf B, then move it from A to Finder. Expected: B's Item still opens.
 - [ ] In the expanded grid, click, then Cmd-click and Shift-click Items. Expected: click selects (highlight); Cmd/Shift-click multi-selects.
 - [ ] Drag a selected Item, then an unselected Item. Expected: a selected Item drags the whole selection; an unselected Item drags just itself.
