@@ -2,33 +2,6 @@ import Foundation
 import Testing
 @testable import OpenDropCore
 
-/// Feeds a zig-zag: `strokes` strokes of `width` pt, `step` pt per sample, `dt` s apart.
-/// An optional pause of `pause` seconds is inserted after stroke number `pauseAfterStroke` (1-based).
-func zigzag(
-    _ d: inout ShakeDetector,
-    strokes: Int,
-    width: Double,
-    step: Double = 5,
-    dt: TimeInterval = 0.01,
-    start: Date = Date(timeIntervalSince1970: 0),
-    pauseAfterStroke: Int? = nil,
-    pause: TimeInterval = 0
-) {
-    let samplesPerStroke = Int(width / step)
-    var x = 0.0
-    var time = start
-    d.feed(x: x, at: time)
-    for stroke in 1...strokes {
-        let direction = stroke.isMultiple(of: 2) ? -1.0 : 1.0
-        for _ in 0..<samplesPerStroke {
-            time += dt
-            x += direction * step
-            d.feed(x: x, at: time)
-        }
-        if stroke == pauseAfterStroke { time += pause }
-    }
-}
-
 @Test func parametersPerLevel() {
     #expect(ShakeSensitivity.off.parameters == nil)
     #expect(ShakeSensitivity.normal.parameters == ShakeParameters(requiredReversals: 4, minStroke: 20))
