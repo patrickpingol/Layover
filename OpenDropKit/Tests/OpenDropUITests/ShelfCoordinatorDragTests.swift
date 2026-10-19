@@ -6,39 +6,64 @@ import OpenDropCore
 /// A Shelf with `count` Owned File Items, and `preferences` set to close or keep an emptied Shelf.
 @MainActor
 private func withDraggedShelf(
-    itemCount: Int, closeShelfWhenEmptied: Bool = true, _ body: (ShelfCoordinator, Shelf) throws -> Void
-) throws {
+    itemCount: Int, closeShelfWhenEmptied: Bool = true, _ body: (ShelfCoordinator, Shelf) async throws -> Void
+) async throws {
     let preferences = Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!)
     preferences.closeShelfWhenEmptied = closeShelfWhenEmptied
-    let shelf = shelf(withItems: itemCount)
-    try withCoordinator(shelf: shelf, preferences: preferences) { coordinator, _, _ in
-        try body(coordinator, shelf)
+    let shelf = makeShelf(withItems: itemCount)
+    try await withCoordinator(shelf: shelf, preferences: preferences) { coordinator, _, _ in
+        try await body(coordinator, shelf)
     }
 }
 
-@Test @MainActor func aMovedDragRemovesTheDraggedItemsAndKeepsTheShelfOpen() throws {
-    try withDraggedShelf(itemCount: 3) { coordinator, shelf in
+/// Lets work the coordinator deferred to the next main-actor turn run.
+@MainActor
+private func drainDeferredWork() async {
+    for _ in 0..<3 { await Task.yield() }
+}
+
+@Test @MainActor func aMovedDragRemovesTheDraggedItemsAndKeepsTheShelfOpen() async throws {
+    try await withDraggedShelf(itemCount: 3) { coordinator, shelf in
         let dragged = Set(shelf.items.prefix(2).map(\.id))
 
         coordinator.finishDrag(of: dragged, from: shelf.id, operation: .move)
+        await drainDeferredWork()
 
         let open = try #require(coordinator.library.open.first)
         #expect(open.items.map(\.id) == [shelf.items[2].id])
     }
 }
 
-@Test @MainActor func movingEveryItemClosesTheShelfWhenThePreferenceIsOn() throws {
-    try withDraggedShelf(itemCount: 2) { coordinator, shelf in
+@Test @MainActor func movingEveryItemClosesTheShelfOnTheNextTurnWhenThePreferenceIsOn() async throws {
+    try await withDraggedShelf(itemCount: 2) { coordinator, shelf in
         coordinator.finishDrag(of: Set(shelf.items.map(\.id)), from: shelf.id, operation: .move)
+
+        // The Items leave at once; the close waits until AppKit is done ending the drag.
+        #expect(coordinator.library.open.first?.items.isEmpty == true)
+
+        await drainDeferredWork()
 
         #expect(coordinator.library.open.isEmpty)
         #expect(coordinator.library.recent.isEmpty)
     }
 }
 
-@Test @MainActor func movingEveryItemKeepsTheEmptyShelfOpenWhenThePreferenceIsOff() throws {
-    try withDraggedShelf(itemCount: 2, closeShelfWhenEmptied: false) { coordinator, shelf in
+@Test @MainActor func aShelfThatGotNewItemsBeforeTheDeferredCloseStaysOpen() async throws {
+    try await withCoordinator(shelf: makeShelf(withItems: 1)) { coordinator, ownedFiles, _ in
+        let shelf = try #require(coordinator.library.open.first)
         coordinator.finishDrag(of: Set(shelf.items.map(\.id)), from: shelf.id, operation: .move)
+        coordinator.add([.owned(try ownedFiles.makeText("late"))], to: shelf.id)
+
+        await drainDeferredWork()
+
+        #expect(coordinator.library.open.first?.items.count == 1)
+    }
+}
+
+@Test @MainActor func movingEveryItemKeepsTheEmptyShelfOpenWhenThePreferenceIsOff() async throws {
+    try await withDraggedShelf(itemCount: 2, closeShelfWhenEmptied: false) { coordinator, shelf in
+        coordinator.finishDrag(of: Set(shelf.items.map(\.id)), from: shelf.id, operation: .move)
+        await drainDeferredWork()
 
         let open = try #require(coordinator.library.open.first)
         #expect(open.id == shelf.id)
@@ -47,22 +72,65 @@ private func withDraggedShelf(
 }
 
 @Test(arguments: [NSDragOperation.copy, .generic, []])
-@MainActor func aDragThatIsNotAMoveChangesNothing(operation: NSDragOperation) throws {
-    try withDraggedShelf(itemCount: 2) { coordinator, shelf in
+@MainActor func aDragThatIsNotAMoveChangesNothing(operation: NSDragOperation) async throws {
+    try await withDraggedShelf(itemCount: 2) { coordinator, shelf in
         let libraryBefore = coordinator.library
 
         coordinator.finishDrag(of: Set(shelf.items.map(\.id)), from: shelf.id, operation: operation)
+        await drainDeferredWork()
 
         #expect(coordinator.library == libraryBefore)
     }
 }
 
-@Test @MainActor func finishingADragFromAShelfThatIsNotOpenChangesNothing() throws {
-    try withDraggedShelf(itemCount: 2) { coordinator, shelf in
+@Test @MainActor func finishingADragFromAShelfThatIsNotOpenChangesNothing() async throws {
+    try await withDraggedShelf(itemCount: 2) { coordinator, shelf in
         let libraryBefore = coordinator.library
 
         coordinator.finishDrag(of: Set(shelf.items.map(\.id)), from: UUID(), operation: .move)
+        await drainDeferredWork()
 
         #expect(coordinator.library == libraryBefore)
+    }
+}
+
+// MARK: Owned Files handed to a destination that is still moving them
+
+@Test @MainActor func aMovedOwnedFileSurvivesSavesWhileItsFileIsStillThereAndIsCleanedOnceItIsGone() async throws {
+    try await withCoordinator(shelf: Shelf()) { coordinator, ownedFiles, _ in
+        let shelf = try #require(coordinator.library.open.first)
+        let owned = try ownedFiles.makeText("hello")
+        coordinator.add([.owned(owned)], to: shelf.id)
+        let item = try #require(coordinator.library.open.first?.items.first)
+        let directory = ownedFiles.url(for: owned).deletingLastPathComponent()
+
+        coordinator.finishDrag(of: [item.id], from: shelf.id, operation: .move)
+        coordinator.saveNow()
+        coordinator.saveNow()
+
+        // Finder hasn't moved the file yet (or is waiting on a dialog): it must still be here.
+        #expect(coordinator.library.referencedOwnedFileIDs.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: ownedFiles.url(for: owned).path))
+
+        // Finder finishes the move: the file leaves the container.
+        try FileManager.default.removeItem(at: ownedFiles.url(for: owned))
+        coordinator.saveNow()
+
+        #expect(!FileManager.default.fileExists(atPath: directory.path))
+    }
+}
+
+@Test @MainActor func aCopiedOwnedFileKeepsReferenceSemantics() async throws {
+    try await withCoordinator(shelf: Shelf()) { coordinator, ownedFiles, _ in
+        let shelf = try #require(coordinator.library.open.first)
+        let owned = try ownedFiles.makeText("hello")
+        coordinator.add([.owned(owned)], to: shelf.id)
+        let item = try #require(coordinator.library.open.first?.items.first)
+
+        coordinator.finishDrag(of: [item.id], from: shelf.id, operation: .copy)
+        coordinator.saveNow()
+
+        #expect(coordinator.library.referencedOwnedFileIDs == [owned.id])
+        #expect(FileManager.default.fileExists(atPath: ownedFiles.url(for: owned).path))
     }
 }

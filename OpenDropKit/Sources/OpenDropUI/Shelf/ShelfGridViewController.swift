@@ -89,7 +89,8 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
     // the collection view works that out and asks for a writer per Item.
 
     func collectionView(_ collectionView: NSCollectionView, canDragItemsAt indexPaths: Set<IndexPath>, with event: NSEvent) -> Bool {
-        true
+        // A drag of only Unavailable Items never starts, so it leaves no access open.
+        indexPaths.contains { items.indices.contains($0.item) && dragSource.canDrag(items[$0.item]) }
     }
 
     func collectionView(_ collectionView: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {

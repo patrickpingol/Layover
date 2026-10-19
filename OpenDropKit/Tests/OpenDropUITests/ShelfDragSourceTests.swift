@@ -85,3 +85,17 @@ private func unavailableItem() -> Item {
         #expect(source.sourceOperationMask(for: .outsideApplication) == [.copy, .move, .generic])
     }
 }
+
+@Test @MainActor func onlyAvailableItemsCanBeDraggedAndAskingStartsNothing() throws {
+    try withDragSource { source, ownedFiles in
+        let owned = Item(id: UUID(), content: .owned(try ownedFiles.makeText("a")))
+
+        #expect(source.canDrag(owned))
+        #expect(!source.canDrag(unavailableItem()))
+
+        var reportCount = 0
+        source.onFinish = { _, _ in reportCount += 1 }
+        source.finish(operation: .move)
+        #expect(reportCount == 0)
+    }
+}

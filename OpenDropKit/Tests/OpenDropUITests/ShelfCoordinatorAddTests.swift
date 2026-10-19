@@ -3,40 +3,9 @@ import Testing
 import OpenDropCore
 @testable import OpenDropUI
 
-/// `LibrarySnapshot`'s initializer is internal to Core, so a snapshot is built the way a relaunch gets one.
-func snapshot(pinned: [Shelf]) throws -> LibrarySnapshot {
-    struct Raw: Encodable {
-        var version: Int
-        var pinned: [Shelf]
-        var recent: [Shelf]
-    }
-    let data = try JSONEncoder().encode(Raw(version: LibrarySnapshot.currentVersion, pinned: pinned, recent: []))
-    return try JSONDecoder().decode(LibrarySnapshot.self, from: data)
-}
-
-@MainActor
-func withCoordinator(
-    shelf: Shelf,
-    preferences: Preferences = Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!),
-    _ body: (ShelfCoordinator, OwnedFileStore, URL) throws -> Void
-) throws {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let ownedFiles = OwnedFileStore(directory: root.appendingPathComponent("owned"))
-    let coordinator = ShelfCoordinator(
-        library: ShelfLibrary(snapshot: try snapshot(pinned: [shelf])),
-        store: ShelfStore(fileURL: root.appendingPathComponent("shelves.json")),
-        ownedFiles: ownedFiles,
-        preferences: preferences
-    )
-    try body(coordinator, ownedFiles, root)
-    coordinator.saveNow()
-}
-
-@Test @MainActor func addingReportsAddedThenDuplicateForTheSameFile() throws {
+@Test @MainActor func addingReportsAddedThenDuplicateForTheSameFile() async throws {
     let shelf = Shelf()
-    try withCoordinator(shelf: shelf) { coordinator, _, root in
+    try await withCoordinator(shelf: shelf) { coordinator, _, root in
         let url = root.appendingPathComponent("a.txt")
         try Data("a".utf8).write(to: url)
         let reference = try FileReference.make(for: url, securityScoped: false)
@@ -51,9 +20,9 @@ func withCoordinator(
     }
 }
 
-@Test @MainActor func addingDistinctOwnedFilesAddsEach() throws {
+@Test @MainActor func addingDistinctOwnedFilesAddsEach() async throws {
     let shelf = Shelf()
-    try withCoordinator(shelf: shelf) { coordinator, ownedFiles, _ in
+    try await withCoordinator(shelf: shelf) { coordinator, ownedFiles, _ in
         let first = try ownedFiles.makeText("hello")
         let second = try ownedFiles.makeText("hello")
 
@@ -64,9 +33,9 @@ func withCoordinator(
     }
 }
 
-@Test @MainActor func addingTheSameOwnedFileAgainIsADuplicateAndChangesNothing() throws {
+@Test @MainActor func addingTheSameOwnedFileAgainIsADuplicateAndChangesNothing() async throws {
     let shelf = Shelf()
-    try withCoordinator(shelf: shelf) { coordinator, ownedFiles, _ in
+    try await withCoordinator(shelf: shelf) { coordinator, ownedFiles, _ in
         let owned = try ownedFiles.makeText("hello")
         coordinator.add([.owned(owned)], to: shelf.id)
         let libraryBefore = coordinator.library
@@ -79,8 +48,8 @@ func withCoordinator(
     }
 }
 
-@Test @MainActor func addingToAShelfThatIsNotOpenDoesNothing() throws {
-    try withCoordinator(shelf: Shelf()) { coordinator, ownedFiles, _ in
+@Test @MainActor func addingToAShelfThatIsNotOpenDoesNothing() async throws {
+    try await withCoordinator(shelf: Shelf()) { coordinator, ownedFiles, _ in
         let owned = try ownedFiles.makeText("hello")
 
         let outcomes = coordinator.add([.owned(owned)], to: UUID())

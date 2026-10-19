@@ -28,6 +28,10 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     private let importer: ItemImporter
     private var panels: [Shelf.ID: OpenPanel] = [:]
     private var pendingSave: Task<Void, Never>?
+    /// Owned Files whose Items left a Shelf in a drag the destination reported as a move. The
+    /// destination may still be moving the file (Finder does, asynchronously, and may be waiting on
+    /// a dialog), so cleanup keeps each one while its file is still where it was.
+    private var handedOff: [UUID: OwnedFile] = [:]
     private var hasLoggedSkippedCleanup = false
 
     public init(library: ShelfLibrary, store: ShelfStore, ownedFiles: OwnedFileStore, preferences: Preferences) {
@@ -91,18 +95,30 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     }
 
     /// Applies the end of a drag out of an open Shelf: when the destination moved the dragged Items
-    /// they leave the Shelf, which closes if that emptied it and the preference is on. A Shelf that
-    /// isn't open changes nothing.
+    /// they leave the Shelf. If that emptied it and the preference is on, the Shelf closes on the
+    /// next main-actor turn, not inside the callback AppKit is still running to end the drag.
+    /// A Shelf that isn't open changes nothing.
     public func finishDrag(of draggedIDs: Set<Item.ID>, from shelfID: Shelf.ID, operation: NSDragOperation) {
         guard var shelf = openShelf(shelfID) else { return }
+        let before = shelf
         let shouldClose = DragOutcome.apply(
             operation: operation, draggedIDs: draggedIDs, to: &shelf, closeWhenEmptied: preferences.closeShelfWhenEmptied
         )
-        if shelf != openShelf(shelfID) {
+        if shelf != before {
+            for item in before.items where draggedIDs.contains(item.id) {
+                if case let .owned(file) = item.content { handedOff[file.id] = file }
+            }
             mutate { $0.update(shelf) }
-            panels[shelfID]?.controller.display(shelf)
+            if !shouldClose { panels[shelfID]?.controller.display(shelf) }
         }
-        if shouldClose { close(shelfID) }
+        if shouldClose {
+            Task { [weak self] in self?.closeIfEmpty(shelfID) }
+        }
+    }
+
+    private func closeIfEmpty(_ id: Shelf.ID) {
+        guard openShelf(id)?.items.isEmpty == true else { return }
+        close(id)
     }
 
     private func close(_ id: Shelf.ID) {
@@ -207,6 +223,13 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
+    /// The handed-off Owned Files whose file is still in place. One that is gone was moved away, so it
+    /// is forgotten and the cleanup removes its directory.
+    private func idsStillHandedOff() -> Set<UUID> {
+        handedOff = handedOff.filter { FileManager.default.fileExists(atPath: ownedFiles.url(for: $0.value).path) }
+        return Set(handedOff.keys)
+    }
+
     private func save() {
         pendingSave?.cancel()
         pendingSave = nil
@@ -227,7 +250,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
             return
         }
         do {
-            try ownedFiles.removeUnreferenced(keeping: library.referencedOwnedFileIDs)
+            try ownedFiles.removeUnreferenced(keeping: library.referencedOwnedFileIDs.union(idsStillHandedOff()))
         } catch {
             Self.logger.error("Could not remove unreferenced Owned Files: \(String(describing: error), privacy: .public)")
         }

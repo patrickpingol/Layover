@@ -29,20 +29,27 @@ final class ShelfDragSource: NSObject, NSDraggingSource {
         self.volumes = volumes
     }
 
+    /// Whether `item`'s file can be reached right now, so it can be dragged. Starts no access.
+    func canDrag(_ item: Item) -> Bool {
+        resolvedURL(of: item) != nil
+    }
+
     /// The URL to drag for `item`, or nil when its file can't be reached right now. Starts
     /// security-scoped access to a file in place, which `finish(operation:)` stops.
     func entry(for item: Item) -> Entry? {
-        let url: URL
-        switch item.content {
-        case let .owned(file):
-            url = ownedFiles.url(for: file)
-        case let .file(reference):
-            guard case let .available(resolved, _) = reference.resolve(volumes: volumes) else { return nil }
-            if resolved.startAccessingSecurityScopedResource() { accessedURLs.append(resolved) }
-            url = resolved
-        }
+        guard let url = resolvedURL(of: item) else { return nil }
+        if case .file = item.content, url.startAccessingSecurityScopedResource() { accessedURLs.append(url) }
         draggedIDs.insert(item.id)
         return Entry(item: item, url: url)
+    }
+
+    private func resolvedURL(of item: Item) -> URL? {
+        switch item.content {
+        case let .owned(file):
+            ownedFiles.url(for: file)
+        case let .file(reference):
+            if case let .available(url, _) = reference.resolve(volumes: volumes) { url } else { nil }
+        }
     }
 
     // MARK: The Handle
@@ -84,8 +91,7 @@ final class ShelfDragSource: NSObject, NSDraggingSource {
         draggedIDs = []
         releaseAccess()
         guard !ids.isEmpty else { return }
-        // Reporting may close the Shelf, and with it everything that holds this source.
-        withExtendedLifetime(self) { onFinish(ids, operation) }
+        onFinish(ids, operation)
     }
 
     private func releaseAccess() {
