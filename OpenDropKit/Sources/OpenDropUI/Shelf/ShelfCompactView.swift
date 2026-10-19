@@ -83,7 +83,7 @@ final class ShelfCompactView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    func display(_ items: [Item]) {
+    func display(_ items: [Item], unavailableIDs: Set<Item.ID> = []) {
         let isEmpty = items.isEmpty
         emptyLabel.isHidden = !isEmpty
         stack.isHidden = isEmpty
@@ -91,7 +91,7 @@ final class ShelfCompactView: NSView {
         handle.isHidden = isEmpty
         moreButton.isHidden = isEmpty
         countLabel.stringValue = String(localized: "\(items.count) items")
-        stack.display(items, using: thumbnails)
+        stack.display(items, unavailableIDs: unavailableIDs, using: thumbnails)
     }
 
     @objc private func showMoreActions() {
@@ -119,7 +119,7 @@ private final class ThumbnailStackView: NSView {
     private var shownIDs: [Item.ID] = []
     private var mouseDownEvent: NSEvent?
 
-    func display(_ items: [Item], using provider: ItemThumbnailProvider) {
+    func display(_ items: [Item], unavailableIDs: Set<Item.ID>, using provider: ItemThumbnailProvider) {
         let shown = Array(items.suffix(Self.maxCount))
         shownIDs = shown.map(\.id)
         while views.count < shown.count {
@@ -133,6 +133,7 @@ private final class ThumbnailStackView: NSView {
         }
         for (view, item) in zip(views, shown) {
             view.show(item, using: provider)
+            view.alphaValue = unavailableIDs.contains(item.id) ? ItemAvailabilityStyle.unavailableAlpha : 1
         }
         needsLayout = true
     }

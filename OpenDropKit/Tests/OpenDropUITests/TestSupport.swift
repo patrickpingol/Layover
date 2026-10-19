@@ -28,15 +28,17 @@ func snapshot(pinned: [Shelf]) throws -> LibrarySnapshot {
 func withCoordinator(
     shelf: Shelf,
     preferences: Preferences = Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!),
+    volumesMounted: Bool = true,
     _ body: (ShelfCoordinator, OwnedFileStore, URL) async throws -> Void
 ) async throws {
-    try await withCoordinator(shelves: [shelf], preferences: preferences, body)
+    try await withCoordinator(shelves: [shelf], preferences: preferences, volumesMounted: volumesMounted, body)
 }
 
 @MainActor
 func withCoordinator(
     shelves: [Shelf],
     preferences: Preferences = Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!),
+    volumesMounted: Bool = true,
     _ body: (ShelfCoordinator, OwnedFileStore, URL) async throws -> Void
 ) async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -47,7 +49,8 @@ func withCoordinator(
         library: ShelfLibrary(snapshot: try snapshot(pinned: shelves)),
         store: ShelfStore(fileURL: root.appendingPathComponent("shelves.json")),
         ownedFiles: ownedFiles,
-        preferences: preferences
+        preferences: preferences,
+        availability: makeMonitor(ownedFiles: ownedFiles, volumesMounted: volumesMounted)
     )
     try await body(coordinator, ownedFiles, root)
     coordinator.saveNow()

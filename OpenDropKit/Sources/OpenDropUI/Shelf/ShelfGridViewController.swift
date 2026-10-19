@@ -20,6 +20,7 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
     private let actions: ItemActionController
     private let collectionView = ShelfCollectionView()
     private var items: [Item] = []
+    private var unavailableIDs: Set<Item.ID> = []
 
     init(thumbnails: ItemThumbnailProvider, dragSource: ShelfDragSource, actions: ItemActionController) {
         self.thumbnails = thumbnails
@@ -68,8 +69,9 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
         view = scrollView
     }
 
-    func display(_ items: [Item]) {
+    func display(_ items: [Item], unavailableIDs: Set<Item.ID> = []) {
         self.items = items
+        self.unavailableIDs = unavailableIDs
         collectionView.reloadData()
     }
 
@@ -121,7 +123,8 @@ final class ShelfGridViewController: NSViewController, NSCollectionViewDataSourc
 
     func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
         let cell = collectionView.makeItem(withIdentifier: ShelfGridItem.identifier, for: indexPath)
-        (cell as? ShelfGridItem)?.show(items[indexPath.item], using: thumbnails)
+        let item = items[indexPath.item]
+        (cell as? ShelfGridItem)?.show(item, using: thumbnails, isUnavailable: unavailableIDs.contains(item.id))
         return cell
     }
 
@@ -233,7 +236,8 @@ private final class ShelfGridItem: NSCollectionViewItem {
         view.layer?.backgroundColor = isSelected ? NSColor.selectedContentBackgroundColor.withAlphaComponent(0.3).cgColor : nil
     }
 
-    func show(_ item: Item, using thumbnails: ItemThumbnailProvider) {
+    func show(_ item: Item, using thumbnails: ItemThumbnailProvider, isUnavailable: Bool) {
+        view.alphaValue = isUnavailable ? ItemAvailabilityStyle.unavailableAlpha : 1
         thumbnailView.show(item, using: thumbnails)
         nameLabel.stringValue = item.displayName
         nameLabel.toolTip = item.displayName

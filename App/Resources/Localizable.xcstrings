@@ -254,6 +254,17 @@
           }
         }
       }
+    },
+    "'%@' was removed from disk.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "'%@' was removed from disk."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

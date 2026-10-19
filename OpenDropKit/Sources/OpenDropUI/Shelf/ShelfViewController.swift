@@ -11,6 +11,8 @@ final class ShelfViewController: NSViewController {
 
     var onClose: () -> Void = {}
     var onTogglePin: () -> Void = {}
+    /// Called after the Shelf expands, so its Items can be checked against the disk.
+    var onExpand: () -> Void = {}
     /// Adds dropped contents to this Shelf and reports what happened to each. Called with no
     /// suspension since the contents were created, which Owned File cleanup relies on.
     var onAdd: ([ItemContent]) -> [Shelf.AddOutcome] = { _ in [] }
@@ -22,8 +24,10 @@ final class ShelfViewController: NSViewController {
     private let actions: ItemActionController
     private var shelf: Shelf
     private var isExpanded = false
+    private var unavailableIDs: Set<Item.ID> = []
 
     private let compactView: ShelfCompactView
+    private let noticeView = ShelfNoticeView()
     private let gridController: ShelfGridViewController
     private let closeButton = ShelfViewController.makeButton()
     private let pinButton = ShelfViewController.makeButton()
@@ -98,21 +102,35 @@ final class ShelfViewController: NSViewController {
                 view.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             ])
         }
+        noticeView.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(noticeView)
+        NSLayoutConstraint.activate([
+            noticeView.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 8),
+            noticeView.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -8),
+            noticeView.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+        ])
         view = root
         render()
     }
 
-    func display(_ shelf: Shelf) {
+    /// Shows `shelf`, with the Items in `unavailableIDs` greyed out.
+    func display(_ shelf: Shelf, unavailableIDs: Set<Item.ID> = []) {
         let sizeBefore = preferredSize
         self.shelf = shelf
+        self.unavailableIDs = unavailableIDs
         if shelf.items.isEmpty { isExpanded = false }
         render()
         if preferredSize != sizeBefore { (view.window as? ShelfPanel)?.resize(to: preferredSize) }
     }
 
+    /// Tells the user, one at a time, that Items were taken off the Shelf because their files are gone.
+    func showRemovedNotices(for names: [String]) {
+        noticeView.show(names.map { String(localized: "'\($0)' was removed from disk.") })
+    }
+
     private func render() {
-        compactView.display(shelf.items)
-        gridController.display(shelf.items)
+        compactView.display(shelf.items, unavailableIDs: unavailableIDs)
+        gridController.display(shelf.items, unavailableIDs: unavailableIDs)
         compactView.isHidden = showsGrid
         gridController.view.isHidden = !showsGrid
 
@@ -180,6 +198,7 @@ final class ShelfViewController: NSViewController {
         isExpanded.toggle()
         render()
         (view.window as? ShelfPanel)?.resize(to: preferredSize)
+        if isExpanded { onExpand() }
     }
 
     // MARK: Buttons

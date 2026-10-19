@@ -5,6 +5,11 @@ import os
 /// Owns the `ShelfLibrary` and the Shelf panels: opens, closes, reopens and restores Shelves,
 /// and keeps the library saved.
 ///
+/// Open Shelves are checked against the disk when they are shown (a Recent Shelf when it is reopened),
+/// when they expand, and when a volume is mounted or unmounted or the app becomes active: Items follow
+/// renamed files, Items whose file was deleted are removed with a notice, and Items on an ejected
+/// disk stay and are shown greyed out (`unavailable`, view state that is never saved).
+///
 /// Every library change schedules a save 0.5 s later (debounced). Once a save has landed, Owned Files
 /// that no open or Recent Shelf refers to are deleted, unless the store has set aside an unreadable
 /// shelves file (which may still refer to them). Code that creates an Owned File must therefore
@@ -26,6 +31,9 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     private let preferences: Preferences
     private let thumbnails: ItemThumbnailProvider
     private let importer: ItemImporter
+    private let availability: ItemAvailabilityMonitor
+    /// Per open Shelf, the Items whose file can't be reached right now.
+    private var unavailable: [Shelf.ID: Set<Item.ID>] = [:]
     private var panels: [Shelf.ID: OpenPanel] = [:]
     private var pendingSave: Task<Void, Never>?
     /// Owned Files whose Items left a Shelf in a drag the destination reported as a move. The
@@ -34,13 +42,17 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     private var handedOff: [UUID: OwnedFile] = [:]
     private var hasLoggedSkippedCleanup = false
 
-    public init(library: ShelfLibrary, store: ShelfStore, ownedFiles: OwnedFileStore, preferences: Preferences) {
+    public init(library: ShelfLibrary, store: ShelfStore, ownedFiles: OwnedFileStore, preferences: Preferences, availability: ItemAvailabilityMonitor? = nil) {
         self.library = library
         self.store = store
         self.ownedFiles = ownedFiles
         self.preferences = preferences
         thumbnails = ItemThumbnailProvider(ownedFiles: ownedFiles)
         importer = ItemImporter(ownedFiles: ownedFiles)
+        self.availability = availability ?? ItemAvailabilityMonitor(ownedFiles: ownedFiles, onChange: {})
+        super.init()
+        self.availability.onChange = { [weak self] in self?.refreshAvailability() }
+        self.availability.start()
     }
 
     // MARK: Lifecycle
@@ -60,6 +72,31 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     public func reopen(_ id: Shelf.ID) {
         guard mutate({ $0.reopen(id) }), let shelf = openShelf(id) else { return }
         show(shelf, at: Self.restoredOrigin(of: shelf.frame))
+    }
+
+    /// Checks every open Shelf's Items against the disk.
+    public func refreshAvailability() {
+        for shelf in library.open { refreshAvailability(of: shelf.id) }
+    }
+
+    /// Checks one open Shelf's Items against the disk and applies what changed: updated references and
+    /// removed Items go into the library (saved), Unavailable Items are only remembered for display.
+    /// A Shelf emptied this way stays open. Recent Shelves are checked when they are reopened.
+    private func refreshAvailability(of shelfID: Shelf.ID) {
+        guard var shelf = openShelf(shelfID) else { return }
+        let before = shelf
+        let result = availability.refresh(&shelf)
+        let unavailableChanged = unavailable[shelfID, default: []] != result.unavailableIDs
+        unavailable[shelfID] = result.unavailableIDs
+        if shelf != before { mutate { $0.update(shelf) } }
+        // Redisplaying reloads the grid, which drops its selection, so only do it for a visible change.
+        if shelf != before || unavailableChanged { presentShelf(shelf) }
+        if !result.removedNames.isEmpty { panels[shelfID]?.controller.showRemovedNotices(for: result.removedNames) }
+    }
+
+    /// The Items of an open Shelf whose file can't be reached as of the last check.
+    func unavailableItemIDs(in id: Shelf.ID) -> Set<Item.ID> {
+        unavailable[id] ?? []
     }
 
     public func clearRecent() {
@@ -90,7 +127,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         let outcomes = contents.map { shelf.add($0) }
         guard outcomes.contains(where: { if case .added = $0 { true } else { false } }) else { return outcomes }
         mutate { $0.update(shelf) }
-        panels[shelfID]?.controller.display(shelf)
+        presentShelf(shelf)
         return outcomes
     }
 
@@ -103,7 +140,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         shelf.remove(itemIDs)
         guard shelf != before else { return }
         mutate { $0.update(shelf) }
-        panels[shelfID]?.controller.display(shelf)
+        presentShelf(shelf)
     }
 
     /// Applies the end of a drag out of an open Shelf: when the destination moved the dragged Items
@@ -121,11 +158,15 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
                 if case let .owned(file) = item.content { handedOff[file.id] = file }
             }
             mutate { $0.update(shelf) }
-            if !shouldClose { panels[shelfID]?.controller.display(shelf) }
+            if !shouldClose { presentShelf(shelf) }
         }
         if shouldClose {
             Task { [weak self] in self?.closeIfEmpty(shelfID) }
         }
+    }
+
+    private func presentShelf(_ shelf: Shelf) {
+        panels[shelf.id]?.controller.display(shelf, unavailableIDs: unavailable[shelf.id] ?? [])
     }
 
     private func closeIfEmpty(_ id: Shelf.ID) {
@@ -135,6 +176,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
 
     private func close(_ id: Shelf.ID) {
         guard openShelf(id) != nil else { return }
+        unavailable[id] = nil
         if let open = panels.removeValue(forKey: id) {
             open.panel.delegate = nil
             open.panel.close()
@@ -146,7 +188,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         guard var shelf = openShelf(id) else { return }
         shelf.isPinned.toggle()
         mutate { $0.update(shelf) }
-        panels[id]?.controller.display(shelf)
+        presentShelf(shelf)
     }
 
     // MARK: Panels
@@ -167,6 +209,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         controller.isShelfOpen = { [weak self] in self?.openShelf(id) != nil }
         controller.onClose = { [weak self] in self?.close(id) }
         controller.onTogglePin = { [weak self] in self?.togglePin(id) }
+        controller.onExpand = { [weak self] in self?.refreshAvailability(of: id) }
 
         let panel = ShelfPanel(content: controller, size: controller.preferredSize)
         panel.setFrameOrigin(origin)
@@ -174,6 +217,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         panels[id] = OpenPanel(panel: panel, controller: controller)
         panel.orderFrontRegardless()
         recordFrame(of: panel)
+        refreshAvailability(of: id)
     }
 
     public func windowDidMove(_ notification: Notification) {
