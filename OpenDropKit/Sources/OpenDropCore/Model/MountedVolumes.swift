@@ -6,12 +6,16 @@ public protocol MountedVolumes: Sendable {
     func isMounted(volumeUUID: String) -> Bool
 }
 
-/// The volumes mounted on this Mac right now.
+/// The volumes mounted on this Mac right now. A volume matches by UUID or, for volumes without one
+/// (some network volumes), by the URL `FileIdentity` falls back to.
 public struct SystemMountedVolumes: MountedVolumes {
     public init() {}
 
     public func isMounted(volumeUUID: String) -> Bool {
         let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: [.volumeUUIDStringKey], options: []) ?? []
-        return urls.contains { (try? $0.resourceValues(forKeys: [.volumeUUIDStringKey]))?.volumeUUIDString == volumeUUID }
+        return urls.contains {
+            $0.absoluteString == volumeUUID
+                || (try? $0.resourceValues(forKeys: [.volumeUUIDStringKey]))?.volumeUUIDString == volumeUUID
+        }
     }
 }

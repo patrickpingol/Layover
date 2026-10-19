@@ -20,7 +20,11 @@ public struct FileReference: Codable, Hashable, Sendable {
     }
 
     /// Finds the original file again. Resolving never shows UI or mounts a volume.
-    /// `.available` carries a refreshed reference when the bookmark was stale or the path changed.
+    /// `.available` carries a refreshed reference exactly when the bookmark was stale or the path changed.
+    /// If a new bookmark can't be made, the refreshed reference keeps the old bookmark data with the new path.
+    ///
+    /// With `securityScoped: true` the caller must call `startAccessingSecurityScopedResource()` on the
+    /// returned URL, and `stopAccessingSecurityScopedResource()` when done, before using the file.
     public func resolve(volumes: MountedVolumes, securityScoped: Bool = true) -> FileResolution {
         var options: URL.BookmarkResolutionOptions = [.withoutUI, .withoutMounting]
         if securityScoped { options.insert(.withSecurityScope) }
@@ -38,7 +42,9 @@ public struct FileReference: Codable, Hashable, Sendable {
 
         let pathChanged = url.resolvingSymlinksInPath().path != URL(fileURLWithPath: lastKnownPath).resolvingSymlinksInPath().path
         guard isStale || pathChanged else { return .available(url, updated: nil) }
-        return .available(url, updated: try? Self.make(for: url, securityScoped: securityScoped))
+        let refreshed = (try? Self.make(for: url, securityScoped: securityScoped))
+            ?? FileReference(bookmark: bookmark, lastKnownPath: url.path, identity: identity)
+        return .available(url, updated: refreshed)
     }
 
     private func missing(_ volumes: MountedVolumes) -> FileResolution {

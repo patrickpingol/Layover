@@ -131,3 +131,36 @@ private func samePath(_ a: URL, _ b: URL) -> Bool {
     #expect(volumes.isMounted(volumeUUID: identity.volumeUUID))
     #expect(!volumes.isMounted(volumeUUID: UUID().uuidString))
 }
+
+@Test func identityFallsBackToVolumeURLAndInode() throws {
+    try withTempDirectory { dir in
+        let url = try makeFile(in: dir)
+        let real = try FileIdentity(of: url)
+        let volumeURL = URL(string: "smb://server/share/")!
+
+        let fallback = try FileIdentity(volumeUUIDString: nil, fileIdentifier: nil, volumeURL: volumeURL, path: url.path)
+
+        #expect(fallback.volumeUUID == "smb://server/share/")
+        #expect(fallback.fileID == real.fileID)
+    }
+}
+
+@Test func identityPrefersReportedValuesOverFallbacks() throws {
+    let identity = try FileIdentity(volumeUUIDString: "UUID", fileIdentifier: 7, volumeURL: URL(string: "smb://x/")!, path: "/nonexistent")
+    #expect(identity == FileIdentity(volumeUUID: "UUID", fileID: 7))
+}
+
+@Test func identityThrowsWhenFallbacksUnavailable() {
+    #expect(throws: (any Error).self) {
+        try FileIdentity(volumeUUIDString: nil, fileIdentifier: 1, volumeURL: nil, path: "/")
+    }
+    #expect(throws: (any Error).self) {
+        try FileIdentity(volumeUUIDString: "UUID", fileIdentifier: nil, volumeURL: nil, path: "/nonexistent/\(UUID().uuidString)")
+    }
+}
+
+@Test func systemMountedVolumesRecognisesVolumeURLFallback() {
+    let volumes = SystemMountedVolumes()
+    #expect(volumes.isMounted(volumeUUID: "file:///"))
+    #expect(!volumes.isMounted(volumeUUID: "smb://nowhere/\(UUID().uuidString)/"))
+}
