@@ -7,11 +7,13 @@ import OpenDropUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = Preferences()
     private let store = ShelfStore(fileURL: AppPaths.shelvesFile)
-    private lazy var library = ShelfLibrary(snapshot: store.load())
+    private var library = ShelfLibrary(snapshot: .empty)
     private var statusMenu: StatusMenuController?
     private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        library = ShelfLibrary(snapshot: store.load())
+
         let statusMenu = StatusMenuController(
             onNewShelf: { print("New Shelf") },
             onOpenSettings: { print("Settings") },
