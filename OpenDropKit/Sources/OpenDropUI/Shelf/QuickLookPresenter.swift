@@ -1,5 +1,6 @@
 import AppKit
 import QuickLookUI
+import os
 
 /// The data source of the shared Quick Look panel while it shows Items' files.
 ///
@@ -12,6 +13,7 @@ final class QuickLookPresenter: NSObject, @MainActor QLPreviewPanelDataSource, @
     static let shared = QuickLookPresenter()
 
     private static let spaceKeyCode: UInt16 = 49
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "OpenDrop", category: "QuickLook")
 
     private var urls: [URL] = []
     private var onEnd: (() -> Void)?
@@ -48,6 +50,7 @@ final class QuickLookPresenter: NSObject, @MainActor QLPreviewPanelDataSource, @
         guard QLPreviewPanel.sharedPreviewPanelExists() else { return }
         QLPreviewPanel.shared().orderOut(nil)
         host = nil
+        releasePanel()
         finishShowing()
     }
 
@@ -61,11 +64,13 @@ final class QuickLookPresenter: NSObject, @MainActor QLPreviewPanelDataSource, @
     // MARK: Control, forwarded by the host window
 
     func accepts(control window: NSWindow) -> Bool {
-        onEnd != nil && host === window
+        Self.logger.debug("accepts control? \(self.onEnd != nil && self.host === window)")
+        return onEnd != nil && host === window
     }
 
     func begin(control panel: QLPreviewPanel, for window: NSWindow) {
         guard host === window else { return }
+        Self.logger.debug("begin control, \(self.urls.count) files")
         panel.dataSource = self
         panel.delegate = self
         panel.reloadData()
@@ -74,8 +79,18 @@ final class QuickLookPresenter: NSObject, @MainActor QLPreviewPanelDataSource, @
     func end(control window: NSWindow) {
         // A showing that replaced the one `window` hosted has a different host, and goes on.
         guard host === window else { return }
+        Self.logger.debug("end control, \(self.urls.count) files")
         host = nil
+        releasePanel()
         finishShowing()
+    }
+
+    /// Stops the panel asking this presenter for files once it no longer has any to show.
+    private func releasePanel() {
+        guard QLPreviewPanel.sharedPreviewPanelExists() else { return }
+        let panel = QLPreviewPanel.shared()!
+        if panel.dataSource === self { panel.dataSource = nil }
+        if panel.delegate === self { panel.delegate = nil }
     }
 
     // MARK: QLPreviewPanelDataSource
@@ -85,7 +100,7 @@ final class QuickLookPresenter: NSObject, @MainActor QLPreviewPanelDataSource, @
     }
 
     func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
-        urls[index] as NSURL
+        urls.indices.contains(index) ? urls[index] as NSURL : nil
     }
 
     // MARK: QLPreviewPanelDelegate

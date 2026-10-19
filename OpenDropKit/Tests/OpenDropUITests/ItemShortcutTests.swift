@@ -15,6 +15,7 @@ private let letterC: UInt16 = 8
 
 @Test func commandCCopies() {
     #expect(ItemShortcut.action(keyCode: letterC, characters: "c", modifiers: .command) == .copy)
+    #expect(ItemShortcut.action(keyCode: letterC, characters: "C", modifiers: [.command, .capsLock]) == .copy)
     #expect(ItemShortcut.action(keyCode: letterC, characters: "c", modifiers: []) == nil)
     #expect(ItemShortcut.action(keyCode: letterC, characters: "c", modifiers: [.command, .shift]) == nil)
 }

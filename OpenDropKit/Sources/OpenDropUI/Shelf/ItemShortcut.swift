@@ -19,7 +19,7 @@ enum ItemShortcut {
             if keyCode == spaceKeyCode { return .quickLook }
             if deleteKeyCodes.contains(keyCode) { return .remove }
         }
-        if modifiers == .command, characters == "c" { return .copy }
+        if modifiers == .command, characters?.lowercased() == "c" { return .copy }
         return nil
     }
 }
