@@ -7,6 +7,10 @@ final class ShelfDropView: NSView {
     /// Called with the dragging pasteboard when something is dropped; returns whether it was taken.
     var onDrop: (NSPasteboard) -> Bool = { _ in false }
 
+    /// The drag source this Shelf starts its own drags with (the Handle's). Drags started from views
+    /// inside this view (the grid) are recognized without it.
+    weak var dragSource: AnyObject?
+
     private var isTargeted = false {
         didSet {
             guard isTargeted != oldValue else { return }
@@ -56,10 +60,18 @@ final class ShelfDropView: NSView {
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         isTargeted = false
-        return onDrop(sender.draggingPasteboard)
+        return !isOwnDrag(from: sender.draggingSource) && onDrop(sender.draggingPasteboard)
+    }
+
+    /// Whether a drag from `source` (`NSDraggingInfo.draggingSource`) started in this Shelf. Dropping
+    /// a Shelf's Items back on it would only copy them, so it takes no such drop.
+    func isOwnDrag(from source: Any?) -> Bool {
+        if let dragSource, let source = source as AnyObject?, source === dragSource { return true }
+        return (source as? NSView)?.isDescendant(of: self) == true
     }
 
     private func accepts(_ sender: any NSDraggingInfo) -> Bool {
-        sender.draggingPasteboard.availableType(from: ItemImporter.acceptedTypes) != nil
+        !isOwnDrag(from: sender.draggingSource)
+            && sender.draggingPasteboard.availableType(from: ItemImporter.acceptedTypes) != nil
     }
 }

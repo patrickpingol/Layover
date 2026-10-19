@@ -224,7 +224,7 @@ private func fileReference(_ content: ItemContent) -> FileReference? {
     }
 }
 
-@Test @MainActor func fileURLInsideOwnedFilesDirectoryBecomesTheSameOwnedFile() throws {
+@Test @MainActor func fileURLInsideOwnedFilesDirectoryBecomesANewOwnedFileWithItsOwnFile() throws {
     try withImporter { importer, pasteboard, store, root in
         let owned = try store.makeText("hello")
         let outside = try makeFile(named: "a.txt", in: root)
@@ -233,7 +233,12 @@ private func fileReference(_ content: ItemContent) -> FileReference? {
         let contents = try importer.contents(from: pasteboard)
 
         #expect(contents.count == 2)
-        #expect(contents.first.flatMap(ownedFile) == owned)
+        let copy = try #require(contents.first.flatMap(ownedFile))
+        #expect(copy.id != owned.id)
+        #expect(copy.filename == owned.filename)
+        #expect(copy.kind == owned.kind)
+        #expect(try String(contentsOf: store.url(for: copy), encoding: .utf8) == "hello")
+        #expect(FileManager.default.fileExists(atPath: store.url(for: owned).path))
         #expect(fileReference(contents[1])?.lastKnownPath == outside.path)
     }
 }

@@ -64,8 +64,25 @@ public struct OwnedFileStore: Sendable {
         return file
     }
 
+    /// Copies `file` into a new Owned File of its own (new id, same filename and kind), so that two
+    /// Shelves never share one. The original is untouched. On failure nothing is left behind.
+    public func copyOwnedFile(_ file: OwnedFile) throws -> OwnedFile {
+        let copy = OwnedFile(id: UUID(), filename: file.filename, kind: file.kind)
+        let fileManager = FileManager.default
+        let folder = url(for: copy).deletingLastPathComponent()
+        try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        do {
+            try fileManager.copyItem(at: url(for: file), to: url(for: copy))
+        } catch {
+            try? fileManager.removeItem(at: folder)
+            throw error
+        }
+        return copy
+    }
+
     /// The Owned File at `url`, when it is an existing file at `<directory>/<uuid>/<filename>` (as when
-    /// an Item is dragged out of a Shelf and dropped on another). Its kind is inferred from the extension.
+    /// an Item is dragged out of a Shelf and dropped on another, which copies it with `copyOwnedFile`).
+    /// Its kind is inferred from the extension.
     public func ownedFile(at url: URL) -> OwnedFile? {
         let folder = url.standardizedFileURL.deletingLastPathComponent()
         guard let id = UUID(uuidString: folder.lastPathComponent),

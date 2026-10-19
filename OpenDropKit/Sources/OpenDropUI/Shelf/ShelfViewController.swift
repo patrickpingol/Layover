@@ -55,6 +55,7 @@ final class ShelfViewController: NSViewController {
 
     override func loadView() {
         let root = ShelfDropView(frame: CGRect(origin: .zero, size: ShelfCompactView.size))
+        root.dragSource = dragSource
         root.onDrop = { [weak self] pasteboard in self?.handleDrop(pasteboard) ?? false }
         addChild(gridController)
 

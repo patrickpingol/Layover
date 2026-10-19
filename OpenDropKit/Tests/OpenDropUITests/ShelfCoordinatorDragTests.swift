@@ -134,3 +134,34 @@ private func drainDeferredWork() async {
         #expect(FileManager.default.fileExists(atPath: ownedFiles.url(for: owned).path))
     }
 }
+
+@Test @MainActor func aCopyOnAnotherShelfKeepsItsFileWhenTheOriginalIsMovedOut() async throws {
+    let shelfA = Shelf()
+    let shelfB = Shelf()
+    try await withCoordinator(shelves: [shelfA, shelfB]) { coordinator, ownedFiles, root in
+        let original = try ownedFiles.makeText("hello")
+        coordinator.add([.owned(original)], to: shelfA.id)
+        let itemOnA = try #require(coordinator.library.open.first { $0.id == shelfA.id }?.items.first)
+
+        // Dropping the Item on Shelf B imports its file as a new Owned File of Shelf B.
+        let pasteboard = NSPasteboard(name: .init("test-\(UUID())"))
+        defer { pasteboard.releaseGlobally() }
+        pasteboard.clearContents()
+        pasteboard.writeObjects([ownedFiles.url(for: original) as NSURL])
+        let dropped = try ItemImporter(ownedFiles: ownedFiles, securityScoped: false).contents(from: pasteboard)
+        coordinator.add(dropped, to: shelfB.id)
+
+        // Shelf A's Item is moved into Finder, which takes the file out of the container.
+        coordinator.finishDrag(of: [itemOnA.id], from: shelfA.id, operation: .move)
+        try FileManager.default.removeItem(at: ownedFiles.url(for: original))
+        coordinator.saveNow()
+
+        let itemOnB = try #require(coordinator.library.open.first { $0.id == shelfB.id }?.items.first)
+        guard case let .owned(copy) = itemOnB.content else {
+            Issue.record("Shelf B's Item should be an Owned File")
+            return
+        }
+        #expect(copy.id != original.id)
+        #expect(FileManager.default.fileExists(atPath: ownedFiles.url(for: copy).path))
+    }
+}

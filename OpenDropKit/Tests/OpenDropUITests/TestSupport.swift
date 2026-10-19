@@ -30,12 +30,21 @@ func withCoordinator(
     preferences: Preferences = Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!),
     _ body: (ShelfCoordinator, OwnedFileStore, URL) async throws -> Void
 ) async throws {
+    try await withCoordinator(shelves: [shelf], preferences: preferences, body)
+}
+
+@MainActor
+func withCoordinator(
+    shelves: [Shelf],
+    preferences: Preferences = Preferences(defaults: UserDefaults(suiteName: "test-\(UUID())")!),
+    _ body: (ShelfCoordinator, OwnedFileStore, URL) async throws -> Void
+) async throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let ownedFiles = OwnedFileStore(directory: root.appendingPathComponent("owned"))
     let coordinator = ShelfCoordinator(
-        library: ShelfLibrary(snapshot: try snapshot(pinned: [shelf])),
+        library: ShelfLibrary(snapshot: try snapshot(pinned: shelves)),
         store: ShelfStore(fileURL: root.appendingPathComponent("shelves.json")),
         ownedFiles: ownedFiles,
         preferences: preferences

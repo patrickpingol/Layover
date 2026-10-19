@@ -259,3 +259,43 @@ private let pngSignature = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         #expect(store.ownedFile(at: missing) == nil)
     }
 }
+
+@Test func copyOwnedFileMakesANewOwnedFileAndLeavesTheOriginalUntouched() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+        let original = try store.makeText("hello")
+
+        let copy = try store.copyOwnedFile(original)
+
+        #expect(copy.id != original.id)
+        #expect(copy.filename == original.filename)
+        #expect(copy.kind == original.kind)
+        #expect(try String(contentsOf: store.url(for: copy), encoding: .utf8) == "hello")
+        #expect(try String(contentsOf: store.url(for: original), encoding: .utf8) == "hello")
+    }
+}
+
+@Test func theCopyOfAnOwnedFileSurvivesTheOriginalBeingRemoved() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+        let original = try store.makeText("hello")
+        let copy = try store.copyOwnedFile(original)
+
+        try store.removeUnreferenced(keeping: [copy.id])
+
+        #expect(!FileManager.default.fileExists(atPath: store.url(for: original).path))
+        #expect(FileManager.default.fileExists(atPath: store.url(for: copy).path))
+    }
+}
+
+@Test func copyOwnedFileOfAMissingFileThrowsAndLeavesNoFolderBehind() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+        let missing = OwnedFile(id: UUID(), filename: "gone.txt", kind: .text)
+
+        #expect(throws: (any Error).self) { try store.copyOwnedFile(missing) }
+
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: store.directory.path)) ?? []
+        #expect(entries.isEmpty)
+    }
+}

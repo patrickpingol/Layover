@@ -24,8 +24,9 @@ public struct ItemImporter: Sendable {
     }
 
     /// The contents of a drop, from the first of these the pasteboard has:
-    /// 1. file URLs, one item each: an Owned File when the URL is inside the Owned Files directory
-    ///    (an Item dragged from another Shelf), else a `.file` (one that can't be bookmarked is skipped),
+    /// 1. file URLs, one item each: a new Owned File, copied from the original, when the URL is inside
+    ///    the Owned Files directory (an Item dragged from another Shelf, which must not share its file
+    ///    with that Shelf), else a `.file` (one that can't be bookmarked or copied is skipped),
     /// 2. PNG or TIFF image data, as a PNG (browsers also put the image's URL on the pasteboard),
     /// 3. a web URL, as a link titled from `public.url-name` when present,
     /// 4. a string, as text.
@@ -51,7 +52,9 @@ public struct ItemImporter: Sendable {
     }
 
     private func fileContent(at url: URL) -> ItemContent? {
-        if let owned = ownedFiles.ownedFile(at: url) { return .owned(owned) }
+        if let owned = ownedFiles.ownedFile(at: url) {
+            return (try? ownedFiles.copyOwnedFile(owned)).map(ItemContent.owned)
+        }
         return (try? FileReference.make(for: url, securityScoped: securityScoped)).map(ItemContent.file)
     }
 
