@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "ast-grep": {
+      "source": "ast-grep/agent-skill",
+      "sourceType": "github",
+      "skillPath": "ast-grep/skills/ast-grep/SKILL.md",
+      "computedHash": "472c7cd092f9fad72e0ad0c58b5f6af627844730ecc420c009e25a835a5d6e81"
+    },
+    "ast-grep-outline": {
+      "source": "ast-grep/agent-skill",
+      "sourceType": "github",
+      "skillPath": "ast-grep/skills/outline/SKILL.md",
+      "computedHash": "5fca6734ddf196a61f9f58701668428420680d2052e762355dd9a18136699465"
+    },
+    "conventional-branch": {
+      "source": "conventional-branch/conventional-branch",
+      "sourceType": "github",
+      "skillPath": "skills/conventional-branch/SKILL.md",
+      "computedHash": "fb53f23ccd7f6985b01a2032837f9e794e307e84bbf7988b386b3545402ac334"
+    },
+    "conventional-commits": {
+      "source": "dgalarza/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/conventional-commits/SKILL.md",
+      "computedHash": "9933c4ed8509de60bb0554305d9cda44cc2c35f39f2f1c5d79a8e7b551c402fa"
+    }
+  }
+}

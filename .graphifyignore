@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+coverage/
+vendor/
+target/
+*.min.js
+.build/
+DerivedData/
+.swiftpm/
+*.xcodeproj
+.worktrees/
+.agents/
+.claude/skills/
+.superpowers/sdd/
