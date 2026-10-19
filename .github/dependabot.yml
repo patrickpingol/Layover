@@ -1,0 +1,7 @@
+# Sparkle is declared in project.yml, which Dependabot doesn't read; see docs/release.md.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

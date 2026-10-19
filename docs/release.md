@@ -69,6 +69,10 @@ Then add its secrets:
 
 If the workflow fails before publishing, fix the cause, delete the tag (`git push origin :refs/tags/v0.2.0` and `git tag -d v0.2.0`) and tag again.
 
+## Dependencies
+
+Dependabot (`.github/dependabot.yml`) keeps the GitHub Actions up to date. It can't see Sparkle, which is declared in `project.yml` (`from: "2.6.0"`) rather than a `Package.swift`. No `Package.resolved` is committed, so every build, CI's included, resolves the newest Sparkle 2.x. Before tagging, check [Sparkle's releases](https://github.com/sparkle-project/Sparkle/releases) for changes that matter.
+
 ## Moving to a Developer ID
 
 With an Apple Developer Program membership, releases can be notarized so Gatekeeper opens them without a prompt:
