@@ -1,0 +1,114 @@
+import CoreGraphics
+import Foundation
+import Testing
+@testable import OpenDropCore
+
+private func date(_ seconds: Double) -> Date {
+    Date(timeIntervalSince1970: seconds)
+}
+
+private func ownedShelf(createdAt: Double) -> Shelf {
+    var shelf = Shelf(createdAt: date(createdAt))
+    _ = shelf.add(.owned(OwnedFile(id: UUID(), filename: "note.txt", kind: .text)))
+    return shelf
+}
+
+private func setAsideFiles(in directory: URL) throws -> [URL] {
+    try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        .filter { $0.lastPathComponent.hasPrefix("shelves.json.unreadable-") }
+}
+
+@Test func missingFileLoadsEmpty() throws {
+    try withTempDirectory { dir in
+        let store = ShelfStore(fileURL: dir.appendingPathComponent("shelves.json"))
+        #expect(store.load() == .empty)
+    }
+}
+
+@Test func roundTrip() throws {
+    try withTempDirectory { dir in
+        let target = dir.appendingPathComponent("target.txt")
+        try Data("hi".utf8).write(to: target)
+        let reference = try FileReference.make(for: target, securityScoped: false)
+
+        var pinned = ownedShelf(createdAt: 1_700_000_000)
+        pinned.isPinned = true
+        pinned.frame = CGRect(x: 10, y: 20.5, width: 300, height: 200)
+        _ = pinned.add(.file(reference))
+
+        let snapshot = LibrarySnapshot(
+            version: LibrarySnapshot.currentVersion,
+            pinned: [pinned],
+            recent: [ownedShelf(createdAt: 1_700_000_100), ownedShelf(createdAt: 1_700_000_200)]
+        )
+
+        let store = ShelfStore(fileURL: dir.appendingPathComponent("shelves.json"))
+        try store.save(snapshot)
+        #expect(store.load() == snapshot)
+    }
+}
+
+@Test func loadSetsAsideCorruptFile() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        let bad = Data("{nope".utf8)
+        try bad.write(to: file)
+
+        #expect(ShelfStore(fileURL: file).load() == .empty)
+
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        let aside = try setAsideFiles(in: dir)
+        #expect(aside.count == 1)
+        #expect(try Data(contentsOf: aside[0]) == bad)
+    }
+}
+
+@Test func loadSetsAsideFutureVersion() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        let future = Data(#"{"version": 2, "pinned": [], "recent": []}"#.utf8)
+        try future.write(to: file)
+
+        #expect(ShelfStore(fileURL: file).load() == .empty)
+
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        let aside = try setAsideFiles(in: dir)
+        #expect(aside.count == 1)
+        #expect(try Data(contentsOf: aside[0]) == future)
+    }
+}
+
+@Test func repeatedSetAsideNeverOverwritesEarlierOne() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        let store = ShelfStore(fileURL: file)
+        for attempt in 1...3 {
+            try Data("{bad \(attempt)".utf8).write(to: file)
+            #expect(store.load() == .empty)
+        }
+        let contents = try setAsideFiles(in: dir).map { try String(contentsOf: $0, encoding: .utf8) }
+        #expect(Set(contents) == ["{bad 1", "{bad 2", "{bad 3"])
+    }
+}
+
+@Test func failedSetAsideStillLoadsEmptyAndKeepsOriginal() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("shelves.json")
+        let bad = Data("{nope".utf8)
+        try bad.write(to: file)
+        // A read-only directory makes the rename fail.
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: dir.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dir.path) }
+
+        #expect(ShelfStore(fileURL: file).load() == .empty)
+        #expect(try Data(contentsOf: file) == bad)
+    }
+}
+
+@Test func saveCreatesParentDirectory() throws {
+    try withTempDirectory { dir in
+        let file = dir.appendingPathComponent("a/b/shelves.json")
+        try ShelfStore(fileURL: file).save(.empty)
+        #expect(FileManager.default.fileExists(atPath: file.path))
+    }
+}
