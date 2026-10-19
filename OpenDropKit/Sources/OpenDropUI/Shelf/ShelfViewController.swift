@@ -14,6 +14,8 @@ final class ShelfViewController: NSViewController {
     /// Adds dropped contents to this Shelf and reports what happened to each. Called with no
     /// suspension since the contents were created, which Owned File cleanup relies on.
     var onAdd: ([ItemContent]) -> [Shelf.AddOutcome] = { _ in [] }
+    /// Whether the Shelf is still open, so promised files arriving late can be discarded.
+    var isShelfOpen: () -> Bool = { false }
 
     private let importer: ItemImporter
     private var shelf: Shelf
@@ -118,7 +120,13 @@ final class ShelfViewController: NSViewController {
         if let reception = importer.beginReceivingPromises(from: pasteboard) {
             Task { [weak self] in
                 do {
-                    try await reception.receive { self?.add($0) }
+                    try await reception.receive(
+                        shouldAdopt: { self?.isShelfOpen() ?? false },
+                        deliver: { contents in
+                            if contents.isEmpty { Self.logger.notice("A drop of promised files yielded no files") }
+                            self?.add(contents)
+                        }
+                    )
                 } catch {
                     Self.logger.error("Could not receive promised files: \(String(describing: error), privacy: .public)")
                 }
@@ -143,10 +151,8 @@ final class ShelfViewController: NSViewController {
             if case let .duplicate(id) = outcome { id } else { nil }
         }
         guard !duplicates.isEmpty else { return }
-        if showsGrid {
-            for id in duplicates { gridController.bounce(id) }
-        } else {
-            compactView.bounceStack()
+        for id in duplicates {
+            if showsGrid { gridController.bounce(id) } else { compactView.bounce(id) }
         }
     }
 

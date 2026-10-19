@@ -84,6 +84,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     public func add(_ contents: [ItemContent], to shelfID: Shelf.ID) -> [Shelf.AddOutcome] {
         guard var shelf = openShelf(shelfID) else { return [] }
         let outcomes = contents.map { shelf.add($0) }
+        guard outcomes.contains(where: { if case .added = $0 { true } else { false } }) else { return outcomes }
         mutate { $0.update(shelf) }
         panels[shelfID]?.controller.display(shelf)
         return outcomes
@@ -109,6 +110,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         let id = shelf.id
         let controller = ShelfViewController(shelf: shelf, thumbnails: thumbnails, importer: importer)
         controller.onAdd = { [weak self] contents in self?.add(contents, to: id) ?? [] }
+        controller.isShelfOpen = { [weak self] in self?.openShelf(id) != nil }
         controller.onClose = { [weak self] in self?.close(id) }
         controller.onTogglePin = { [weak self] in self?.togglePin(id) }
 

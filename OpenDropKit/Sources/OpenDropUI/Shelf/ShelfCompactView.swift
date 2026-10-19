@@ -71,9 +71,10 @@ final class ShelfCompactView: NSView {
         stack.display(items, using: thumbnails)
     }
 
-    /// Bounces the stack. It shows at most the three newest Items, so it stands in for any of them.
-    func bounceStack() {
-        stack.bounce()
+    /// Bounces the thumbnail of the Item with `id`, or the whole stack when that Item is not one of
+    /// the (at most three) newest Items it shows.
+    func bounce(_ id: Item.ID) {
+        stack.bounceThumbnail(of: id)
     }
 }
 
@@ -88,10 +89,12 @@ private final class ThumbnailStackView: NSView {
     var onClick: () -> Void = {}
 
     private var views: [ItemThumbnailView] = []
+    private var shownIDs: [Item.ID] = []
     private var mouseDownEvent: NSEvent?
 
     func display(_ items: [Item], using provider: ItemThumbnailProvider) {
         let shown = Array(items.suffix(Self.maxCount))
+        shownIDs = shown.map(\.id)
         while views.count < shown.count {
             let view = ItemThumbnailView()
             view.imageScaling = .scaleProportionallyUpOrDown
@@ -105,6 +108,14 @@ private final class ThumbnailStackView: NSView {
             view.show(item, using: provider)
         }
         needsLayout = true
+    }
+
+    func bounceThumbnail(of id: Item.ID) {
+        if let index = shownIDs.firstIndex(of: id), index < views.count {
+            views[index].bounce()
+        } else {
+            bounce()
+        }
     }
 
     override func layout() {

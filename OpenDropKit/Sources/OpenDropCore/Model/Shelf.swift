@@ -19,11 +19,10 @@ public struct Shelf: Codable, Hashable, Identifiable, Sendable {
         case duplicate(of: Item.ID)
     }
 
-    /// Adds `content` as a new Item unless it is a file already on this Shelf (same file identity).
-    /// Owned Files are never duplicates.
+    /// Adds `content` as a new Item unless it is already on this Shelf: a file with the same file
+    /// identity, or an Owned File with the same id.
     public mutating func add(_ content: ItemContent, id: UUID = UUID()) -> AddOutcome {
-        if case let .file(reference) = content,
-           let existing = items.first(where: { $0.content.fileReference?.identity == reference.identity }) {
+        if let existing = items.first(where: { $0.content.refersToSameFile(as: content) }) {
             return .duplicate(of: existing.id)
         }
         items.append(Item(id: id, content: content))
@@ -43,7 +42,11 @@ public struct Shelf: Codable, Hashable, Identifiable, Sendable {
 }
 
 private extension ItemContent {
-    var fileReference: FileReference? {
-        if case let .file(reference) = self { reference } else { nil }
+    func refersToSameFile(as other: ItemContent) -> Bool {
+        switch (self, other) {
+        case let (.file(a), .file(b)): a.identity == b.identity
+        case let (.owned(a), .owned(b)): a.id == b.id
+        default: false
+        }
     }
 }

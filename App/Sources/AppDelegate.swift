@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var subscriptions: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        ItemImporter.removeLeftoverPromiseDirectories()
         let store = ShelfStore(fileURL: AppPaths.shelvesFile)
         let coordinator = ShelfCoordinator(
             library: ShelfLibrary(snapshot: store.load()),

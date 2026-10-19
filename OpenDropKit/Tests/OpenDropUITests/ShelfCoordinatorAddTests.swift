@@ -49,15 +49,31 @@ private func withCoordinator(
     }
 }
 
-@Test @MainActor func addingOwnedFilesAlwaysAdds() throws {
+@Test @MainActor func addingDistinctOwnedFilesAddsEach() throws {
     let shelf = Shelf()
     try withCoordinator(shelf: shelf) { coordinator, ownedFiles, _ in
-        let owned = try ownedFiles.makeText("hello")
+        let first = try ownedFiles.makeText("hello")
+        let second = try ownedFiles.makeText("hello")
 
-        let outcomes = coordinator.add([.owned(owned), .owned(owned)], to: shelf.id)
+        let outcomes = coordinator.add([.owned(first), .owned(second)], to: shelf.id)
 
         #expect(outcomes.count == 2)
         #expect(coordinator.library.open.first?.items.count == 2)
+    }
+}
+
+@Test @MainActor func addingTheSameOwnedFileAgainIsADuplicateAndChangesNothing() throws {
+    let shelf = Shelf()
+    try withCoordinator(shelf: shelf) { coordinator, ownedFiles, _ in
+        let owned = try ownedFiles.makeText("hello")
+        coordinator.add([.owned(owned)], to: shelf.id)
+        let libraryBefore = coordinator.library
+
+        let outcomes = coordinator.add([.owned(owned)], to: shelf.id)
+
+        let existing = try #require(libraryBefore.open.first?.items.first)
+        #expect(outcomes == [.duplicate(of: existing.id)])
+        #expect(coordinator.library == libraryBefore)
     }
 }
 

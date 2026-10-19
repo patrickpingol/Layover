@@ -224,3 +224,38 @@ private let pngSignature = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         #expect(entries.isEmpty)
     }
 }
+
+@Test func ownedFileAtURLInsideTheStoreIsRecognizedWithKindFromExtension() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+        let text = try store.makeText("hello")
+        let link = try store.makeLink(URL(string: "https://example.com")!, title: nil)
+        let image = try store.makeImage(pngData: tinyPNG, suggestedName: nil)
+        let source = dir.appendingPathComponent("a.pdf")
+        try Data("pdf".utf8).write(to: source)
+        let received = try store.adoptReceivedFile(at: source)
+
+        for file in [text, link, image, received] {
+            #expect(store.ownedFile(at: store.url(for: file)) == file)
+        }
+    }
+}
+
+@Test func ownedFileAtURLOutsideTheStoreIsNil() throws {
+    try withTempDirectory { dir in
+        let store = OwnedFileStore(directory: dir.appendingPathComponent("owned"))
+        let owned = try store.makeText("hello")
+        let outside = dir.appendingPathComponent("\(UUID().uuidString)/note.txt")
+        try FileManager.default.createDirectory(at: outside.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: outside)
+        let nested = store.url(for: owned).deletingLastPathComponent().appendingPathComponent("sub/note.txt")
+        let direct = store.directory.appendingPathComponent("note.txt")
+        try Data("x".utf8).write(to: direct)
+        let missing = store.url(for: OwnedFile(id: UUID(), filename: "gone.txt", kind: .text))
+
+        #expect(store.ownedFile(at: outside) == nil)
+        #expect(store.ownedFile(at: nested) == nil)
+        #expect(store.ownedFile(at: direct) == nil)
+        #expect(store.ownedFile(at: missing) == nil)
+    }
+}

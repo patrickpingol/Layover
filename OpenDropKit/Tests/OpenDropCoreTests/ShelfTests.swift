@@ -70,13 +70,22 @@ private func owned(_ id: UUID = UUID(), kind: OwnedFile.Kind = .text) -> ItemCon
     }
 }
 
-@Test func ownedContentNeverDuplicate() {
+@Test func ownedContentWithSameFileIDIsDuplicate() {
     var shelf = Shelf()
     let fileID = UUID()
     let first = UUID(), second = UUID()
 
     #expect(shelf.add(owned(fileID), id: first) == .added(first))
-    #expect(shelf.add(owned(fileID), id: second) == .added(second))
+    #expect(shelf.add(owned(fileID), id: second) == .duplicate(of: first))
+    #expect(shelf.items.count == 1)
+}
+
+@Test func ownedContentWithDifferentFileIDIsAdded() {
+    var shelf = Shelf()
+    let first = UUID(), second = UUID()
+
+    #expect(shelf.add(owned(UUID()), id: first) == .added(first))
+    #expect(shelf.add(owned(UUID()), id: second) == .added(second))
     #expect(shelf.items.count == 2)
 }
 

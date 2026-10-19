@@ -64,6 +64,24 @@ public struct OwnedFileStore: Sendable {
         return file
     }
 
+    /// The Owned File at `url`, when it is an existing file at `<directory>/<uuid>/<filename>` (as when
+    /// an Item is dragged out of a Shelf and dropped on another). Its kind is inferred from the extension.
+    public func ownedFile(at url: URL) -> OwnedFile? {
+        let folder = url.standardizedFileURL.deletingLastPathComponent()
+        guard let id = UUID(uuidString: folder.lastPathComponent),
+              folder.lastPathComponent == id.uuidString,
+              folder.deletingLastPathComponent().resolvingSymlinksInPath().path == directory.resolvingSymlinksInPath().path,
+              FileManager.default.fileExists(atPath: url.path)
+        else { return nil }
+        let kind: OwnedFile.Kind = switch url.pathExtension.lowercased() {
+        case "txt": .text
+        case "webloc": .link
+        case "png": .image
+        default: .received
+        }
+        return OwnedFile(id: id, filename: url.lastPathComponent, kind: kind)
+    }
+
     /// Deletes every Owned File whose id is not in `ids` and returns how many were deleted.
     /// Entries that are not a directory named by a UUID are left alone.
     @discardableResult

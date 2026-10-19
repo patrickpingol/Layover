@@ -24,29 +24,35 @@ public struct ItemImporter: Sendable {
     }
 
     /// The contents of a drop, from the first of these the pasteboard has:
-    /// 1. file URLs, one `.file` each (one that can't be bookmarked is skipped),
-    /// 2. a web URL, as a link titled from `public.url-name` when present,
-    /// 3. PNG or TIFF image data, as a PNG,
+    /// 1. file URLs, one item each: an Owned File when the URL is inside the Owned Files directory
+    ///    (an Item dragged from another Shelf), else a `.file` (one that can't be bookmarked is skipped),
+    /// 2. PNG or TIFF image data, as a PNG (browsers also put the image's URL on the pasteboard),
+    /// 3. a web URL, as a link titled from `public.url-name` when present,
     /// 4. a string, as text.
+    ///
+    /// File promises sit between 1 and 2 but are received separately, see `beginReceivingPromises`.
     @MainActor
     public func contents(from pasteboard: NSPasteboard) throws -> [ItemContent] {
         let fileURLs = Self.fileURLs(in: pasteboard)
         if !fileURLs.isEmpty {
-            return fileURLs.compactMap { url in
-                (try? FileReference.make(for: url, securityScoped: securityScoped)).map(ItemContent.file)
-            }
+            return fileURLs.compactMap(fileContent)
+        }
+        if let png = Self.pngData(in: pasteboard) {
+            return [.owned(try ownedFiles.makeImage(pngData: png, suggestedName: nil))]
         }
         if let url = Self.webURL(in: pasteboard) {
             let title = pasteboard.string(forType: Self.urlNameType)
             return [.owned(try ownedFiles.makeLink(url, title: title))]
         }
-        if let png = Self.pngData(in: pasteboard) {
-            return [.owned(try ownedFiles.makeImage(pngData: png, suggestedName: nil))]
-        }
         if let string = pasteboard.string(forType: .string), !string.isEmpty {
             return [.owned(try ownedFiles.makeText(string))]
         }
         return []
+    }
+
+    private func fileContent(at url: URL) -> ItemContent? {
+        if let owned = ownedFiles.ownedFile(at: url) { return .owned(owned) }
+        return (try? FileReference.make(for: url, securityScoped: securityScoped)).map(ItemContent.file)
     }
 
     /// Starts receiving the files another app promised (images from browsers, Mail attachments), if
@@ -60,13 +66,26 @@ public struct ItemImporter: Sendable {
         return PromiseReception(receivers: receivers, importer: self)
     }
 
+    /// Where promised files are received before being adopted.
+    static let promiseStagingRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("OpenDropPromises", isDirectory: true)
+
+    /// Deletes what an earlier run left in the promise staging area. Call at launch, before any drop.
+    public static func removeLeftoverPromiseDirectories() {
+        removeLeftoverPromiseDirectories(in: promiseStagingRoot)
+    }
+
+    static func removeLeftoverPromiseDirectories(in root: URL) {
+        try? FileManager.default.removeItem(at: root)
+    }
+
     /// The contents of the files promised on `pasteboard`, each moved into its own Owned File folder
     /// with `kind = .received`. Empty when the pasteboard has no promises or they all failed.
     @MainActor
     public func receivePromises(from pasteboard: NSPasteboard) async throws -> [ItemContent] {
         guard let reception = beginReceivingPromises(from: pasteboard) else { return [] }
         var received: [ItemContent] = []
-        try await reception.receive { received = $0 }
+        try await reception.receive(shouldAdopt: { true }) { received = $0 }
         return received
     }
 
@@ -104,21 +123,36 @@ public struct ItemImporter: Sendable {
     }
 }
 
+/// What `PromiseReception` needs from an `NSFilePromiseReceiver`; tests substitute a fake.
+protocol PromiseReceiving: AnyObject {
+    /// Empty until `receivePromisedFiles` has been called.
+    var fileNames: [String] { get }
+    func receivePromisedFiles(
+        atDestination destinationDir: URL,
+        options: [AnyHashable: Any],
+        operationQueue: OperationQueue,
+        reader: @escaping (URL, (any Error)?) -> Void
+    )
+}
+
+extension NSFilePromiseReceiver: PromiseReceiving {}
+
 /// Promised files being received into a fresh staging directory. The files are adopted as Owned Files
-/// only once all have arrived, in the same main-actor turn the contents are handed over.
+/// only once all have arrived and only if the target Shelf still wants them, in the same main-actor
+/// turn the contents are handed over.
 @MainActor
 final class PromiseReception {
     private let importer: ItemImporter
     private let stagingDirectory: URL
     private let results: AsyncStream<Result<URL, Error>>
+    private let continuation: AsyncStream<Result<URL, Error>>.Continuation
+    private var expected: Int?
+    private var received = 0
 
-    init(receivers: [NSFilePromiseReceiver], importer: ItemImporter) {
+    init(receivers: [any PromiseReceiving], importer: ItemImporter, stagingRoot: URL = ItemImporter.promiseStagingRoot) {
         self.importer = importer
-        stagingDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("OpenDropPromises", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let (results, continuation) = AsyncStream.makeStream(of: Result<URL, Error>.self)
-        self.results = results
+        stagingDirectory = stagingRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        (results, continuation) = AsyncStream.makeStream(of: Result<URL, Error>.self)
 
         do {
             try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
@@ -128,29 +162,32 @@ final class PromiseReception {
             return
         }
 
-        // The receiver calls its reader once per promised file, on `queue`.
-        let expected = receivers.reduce(0) { $0 + $1.fileNames.count }
-        let remaining = OSAllocatedUnfairLock(initialState: expected)
-        guard expected > 0 else {
-            continuation.finish()
-            return
-        }
-        let queue = OperationQueue()
+        // A receiver reports one result per promised file, on the main queue, so none can be handled
+        // before this initializer returns. Its `fileNames` are only known once receiving has started.
         for receiver in receivers {
-            receiver.receivePromisedFiles(atDestination: stagingDirectory, options: [:], operationQueue: queue) { url, error in
-                continuation.yield(error.map { .failure($0) } ?? .success(url))
-                let isLast = remaining.withLock { count in
-                    count -= 1
-                    return count == 0
-                }
-                if isLast { continuation.finish() }
+            receiver.receivePromisedFiles(atDestination: stagingDirectory, options: [:], operationQueue: .main) { [weak self] url, error in
+                self?.record(error.map { .failure($0) } ?? .success(url))
             }
         }
+        expected = receivers.reduce(0) { $0 + $1.fileNames.count }
+        finishIfComplete()
     }
 
-    /// Waits for every promised file, adopts those that arrived and calls `deliver` with their contents
-    /// right after, with no suspension in between. Throws the first error only when no file arrived.
-    func receive(deliver: ([ItemContent]) -> Void) async throws {
+    private func record(_ result: Result<URL, Error>) {
+        continuation.yield(result)
+        received += 1
+        finishIfComplete()
+    }
+
+    private func finishIfComplete() {
+        if let expected, received >= expected { continuation.finish() }
+    }
+
+    /// Waits for every promised file. If `shouldAdopt` is then false, the staging directory is deleted
+    /// and nothing is delivered. Otherwise the files that arrived are adopted and `deliver` is called
+    /// with their contents right after, with no suspension in between. Throws the first error only when
+    /// no file arrived.
+    func receive(shouldAdopt: () -> Bool, deliver: ([ItemContent]) -> Void) async throws {
         var urls: [URL] = []
         var firstError: Error?
         for await result in results {
@@ -158,6 +195,10 @@ final class PromiseReception {
             case let .success(url): urls.append(url)
             case let .failure(error): firstError = firstError ?? error
             }
+        }
+        guard shouldAdopt() else {
+            try? FileManager.default.removeItem(at: stagingDirectory)
+            return
         }
         let contents = importer.adopt(receivedFiles: urls, stagingDirectory: stagingDirectory)
         if contents.isEmpty, let firstError { throw firstError }
