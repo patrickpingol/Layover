@@ -24,8 +24,12 @@ _Avoid_: Grabber, stack
 A rapid side-to-side cursor movement during a drag that opens a new Shelf at the cursor.
 _Avoid_: Wiggle, jiggle, gesture
 
+**Drag Modifier**:
+A modifier key (⌘, ⌃ or ⇧) chosen by the user that, pressed during a drag, opens a new Shelf at the cursor as an alternative to a Shake.
+_Avoid_: Trigger key, hot key, shortcut
+
 **Ignored App**:
-An app over whose windows a Shake is ignored.
+An app over whose windows a Shake or Drag Modifier is ignored.
 _Avoid_: Excluded app, blacklisted app
 
 **Unavailable Item**:
