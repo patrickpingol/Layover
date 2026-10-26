@@ -44,6 +44,10 @@ _Avoid_: Excluded app, blacklisted app
 An Item whose original file can't currently be reached, such as one on an ejected disk. It stays on the Shelf, greyed out.
 _Avoid_: Broken item, missing item
 
+**Instant Action**:
+An action offered on an empty Shelf while content is dragged over it. Dropping the content on it runs the action on that content without adding it to the Shelf as Items.
+_Avoid_: Quick action, drop target, share target
+
 ## Shelf lifecycle
 
 **Recent Shelf**:
