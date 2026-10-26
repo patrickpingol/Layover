@@ -18,11 +18,12 @@ In:
 - Menu-bar agent (`LSUIElement`), no Dock icon.
 - New Shelf from the menu bar menu or a global hotkey. The default is ⌃⌥⌘N; if it clashes with a system shortcut on first launch, it's left unassigned.
 - **Shake** opens a new Shelf at the cursor during a drag. Sensitivity is Off / Normal / High / Highest (default Normal), plus a list of Ignored Apps.
+- **Drag Modifier** (⌘ / ⌃ / ⇧, default Off) opens a new Shelf at the cursor during a drag, under the same rules as a Shake, with or without Shake enabled.
 - Drop into a Shelf: files, text, links and images. Drag out of a Shelf. Several Shelves can be open at once.
 - Persistence of Shelves and a Recent Shelves menu.
 - Item actions: Open, Reveal in Finder, Quick Look, Copy, Remove, Share (system share menu: AirDrop, Mail, …).
 
-Out (deferred): modifier-key trigger, notch, edge docking and retract, Instant Actions, file transforms, folder and screenshot watching, cloud links, Shortcuts/App Intents, share extension, widget.
+Out (deferred): notch, edge docking and retract, Instant Actions, file transforms, folder and screenshot watching, cloud links, Shortcuts/App Intents, share extension, widget.
 
 ## Shake
 
@@ -35,6 +36,8 @@ Horizontal-only reversal counting (algorithm in the teardown §3.2). All levels:
 | Highest | 2 | 10 pt |
 
 A Shake opens a Shelf only if the same drag is seen carrying real content, in either order: the drag pasteboard changed, or a drag image is on screen (a Dock stack drag shows one but leaves the drag pasteboard untouched). It doesn't fire if the drag started on a Shelf or the window under the cursor belongs to an Ignored App. It fires at most once per drag. A Shake always opens a **new** Shelf.
+
+The Drag Modifier follows the same rules, in either order with the content check. Once its key is seen held during a drag, it stays latched for the rest of that drag, as a Shake does, and fires at the cursor's latest position unless that position is over an Ignored App; so a key pressed over an Ignored App and then released still opens a Shelf once the cursor is over a non-ignored app. It works with Shake Off as well as On. A Shake and the Drag Modifier together open at most one Shelf per drag.
 
 ## Shelves and Items
 
@@ -57,7 +60,7 @@ A Shake opens a Shelf only if the same drag is seen carrying real content, in ei
 
 ## Settings (v1, exactly)
 
-Launch at login (asked once on first run) · Shake on/off and sensitivity · Ignored Apps · New Shelf hotkey · Close Shelf when emptied · Show in menu bar.
+Launch at login (asked once on first run) · Shake on/off and sensitivity · Drag Modifier (Off / ⌘ / ⌃ / ⇧, default Off) · Ignored Apps · New Shelf hotkey · Close Shelf when emptied · Show in menu bar.
 
 ## Testing
 

@@ -46,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dragMonitor = DragMonitor(
             preferences: preferences,
             isShelfWindow: { [weak coordinator] in coordinator?.isShelfWindow(number: $0) ?? false },
-            onShake: { [weak coordinator] in coordinator?.openNewShelf(at: $0) }
+            onNewShelf: { [weak coordinator] in coordinator?.openNewShelf(at: $0) }
         )
         dragMonitor.start()
         self.dragMonitor = dragMonitor

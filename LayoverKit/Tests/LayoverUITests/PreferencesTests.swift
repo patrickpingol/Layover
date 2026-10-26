@@ -10,6 +10,7 @@ private func makeDefaults() -> UserDefaults {
 @Test @MainActor func defaultsMatchSpec() {
     let preferences = Preferences(defaults: makeDefaults())
     #expect(preferences.shakeSensitivity == .normal)
+    #expect(preferences.dragModifier == .off)
     #expect(preferences.ignoredBundleIDs == [])
     #expect(preferences.newShelfHotKey == .defaultNewShelf)
     #expect(preferences.closeShelfWhenEmptied)
@@ -28,6 +29,7 @@ private func makeDefaults() -> UserDefaults {
     let preferences = Preferences(defaults: defaults)
     let hotKey = KeyCombo(keyCode: 11, carbonModifiers: 0x100)
     preferences.shakeSensitivity = .highest
+    preferences.dragModifier = .control
     preferences.ignoredBundleIDs = ["com.apple.Safari", "com.apple.Notes"]
     preferences.newShelfHotKey = hotKey
     preferences.closeShelfWhenEmptied = false
@@ -37,6 +39,7 @@ private func makeDefaults() -> UserDefaults {
 
     let reloaded = Preferences(defaults: defaults)
     #expect(reloaded.shakeSensitivity == .highest)
+    #expect(reloaded.dragModifier == .control)
     #expect(reloaded.ignoredBundleIDs == ["com.apple.Safari", "com.apple.Notes"])
     #expect(reloaded.newShelfHotKey == hotKey)
     #expect(!reloaded.closeShelfWhenEmptied)
@@ -56,9 +59,18 @@ private func makeDefaults() -> UserDefaults {
 @Test @MainActor func unreadableStoredValuesFallBackToDefaults() {
     let defaults = makeDefaults()
     defaults.set("loud", forKey: "shakeSensitivity")
+    defaults.set("hyper", forKey: "dragModifier")
     defaults.set(Data("not json".utf8), forKey: "newShelfHotKey")
 
     let preferences = Preferences(defaults: defaults)
     #expect(preferences.shakeSensitivity == .normal)
+    #expect(preferences.dragModifier == .off)
     #expect(preferences.newShelfHotKey == .defaultNewShelf)
+}
+
+@Test(arguments: DragModifier.allCases)
+@MainActor func everyDragModifierSurvivesARestart(modifier: DragModifier) {
+    let defaults = makeDefaults()
+    Preferences(defaults: defaults).dragModifier = modifier
+    #expect(Preferences(defaults: defaults).dragModifier == modifier)
 }

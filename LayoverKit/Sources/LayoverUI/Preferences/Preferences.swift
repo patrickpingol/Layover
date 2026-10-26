@@ -8,6 +8,7 @@ import LayoverCore
 public final class Preferences: ObservableObject {
     private enum Key {
         static let shakeSensitivity = "shakeSensitivity"
+        static let dragModifier = "dragModifier"
         static let ignoredBundleIDs = "ignoredBundleIDs"
         static let newShelfHotKey = "newShelfHotKey"
         static let closeShelfWhenEmptied = "closeShelfWhenEmptied"
@@ -20,6 +21,10 @@ public final class Preferences: ObservableObject {
 
     @Published public var shakeSensitivity: ShakeSensitivity {
         didSet { defaults.set(shakeSensitivity.rawValue, forKey: Key.shakeSensitivity) }
+    }
+
+    @Published public var dragModifier: DragModifier {
+        didSet { defaults.set(dragModifier.rawValue, forKey: Key.dragModifier) }
     }
 
     @Published public var ignoredBundleIDs: [String] {
@@ -50,6 +55,7 @@ public final class Preferences: ObservableObject {
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         shakeSensitivity = defaults.string(forKey: Key.shakeSensitivity).flatMap(ShakeSensitivity.init) ?? .normal
+        dragModifier = defaults.string(forKey: Key.dragModifier).flatMap(DragModifier.init) ?? .off
         ignoredBundleIDs = defaults.stringArray(forKey: Key.ignoredBundleIDs) ?? []
         newShelfHotKey = Self.decodeHotKey(defaults.data(forKey: Key.newShelfHotKey))
         closeShelfWhenEmptied = defaults.object(forKey: Key.closeShelfWhenEmptied) as? Bool ?? true

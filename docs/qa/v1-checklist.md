@@ -105,14 +105,24 @@ Record what Finder reports for each of these.
 - [ ] Shake while selecting text. Expected: nothing happens (Review Focus 4).
 - [ ] Shake while dragging an Item out of a Shelf. Expected: no new Shelf opens.
 - [ ] Add Finder to Ignored Apps (`defaults write … ignoredBundleIDs -array com.apple.finder`, then relaunch). Expected: a Shake while dragging in a Finder window or a Desktop icon opens nothing; a Shake while dragging a Finder file over another app's window (for example Safari) opens a Shelf. Remove the setting afterwards with `defaults delete … ignoredBundleIDs`.
+- [ ] Set the Drag Modifier to ⌘ in Settings. Start dragging a Finder file, then press and hold ⌘ during the drag. Expected: one Shelf opens under the cursor, you can drop the file into it, and keeping ⌘ held opens no second Shelf. Repeat for ⌃ and ⇧.
+- [ ] Set the Drag Modifier to ⌘ in Settings. Start dragging a Finder file, press and hold ⌘, and drop the file onto the new Shelf from the item above. Then start a second drag of a Finder file and press and hold ⌘ again. Expected: a second Shelf opens under the cursor, separate from the first.
+- [ ] Start dragging a Finder file and hold the cursor still, then press ⌘. Expected: nothing opens while the cursor is still. Move the cursor: one Shelf opens under the cursor. A still cursor is not a bug, because drag events arrive only when the mouse moves.
+- [ ] Hold ⌃ before pressing the mouse button, then drag a Finder file (Drag Modifier set to ⌃). Expected: record, not pass/fail. Note whether a Shelf opens and whether the click opens a context menu in the app under the cursor.
+- [ ] Start moving a window, press the Drag Modifier during the move, then repeat while selecting text. Expected: nothing happens.
+- [ ] Start dragging an Item out of a Shelf, then press the Drag Modifier during the drag. Expected: no new Shelf opens.
+- [ ] With Finder in Ignored Apps, start dragging a Finder file in a Finder window or on the Desktop, press ⌘ during the drag, then move the cursor over Safari while still holding ⌘. Expected: nothing opens while the cursor is over Finder; a Shelf opens at the cursor as soon as it is over Safari.
+- [ ] With Finder in Ignored Apps, press the Drag Modifier (⌘) over a Finder window while dragging a Finder file, release ⌘ while still over Finder, then move the cursor over Safari without holding ⌘. Expected: nothing opens over Finder; a Shelf still opens at the cursor once it is over Safari (the key latched during the drag).
+- [ ] Set the Drag Modifier to Off (the default), then press ⌘, ⌃ and ⇧ in turn during a drag of a Finder file. Expected: the key does nothing; Shake alone still works.
 - [ ] Press ⌃⌥⌘N. Expected: a Shelf opens at the cursor, and the menu's New Shelf item shows that shortcut.
-- [ ] Exercise Shake and the hot key. Expected: no permission prompt (Accessibility, Input Monitoring or Screen Recording).
+- [ ] Exercise Shake, the Drag Modifier and the hot key. Expected: no permission prompt (Accessibility, Input Monitoring or Screen Recording).
 - [ ] Optional, first-launch conflict rule: assign ⌃⌥⌘N to a system shortcut in System Settings → Keyboard → Keyboard Shortcuts, delete the `hasCheckedHotKeyConflict` (and `newShelfHotKey`) preference, relaunch. Expected: the hot key is unassigned and the menu item shows no shortcut.
 - [ ] Register ⌃⌥⌘N in another app first, then launch Layover. Expected: the New Shelf menu item shows no shortcut.
 
 ## Settings
 
 - [ ] Set Shake sensitivity to Off, then Normal, High and Highest. Expected: Off stops Shake immediately; the others change the thresholds with no relaunch.
+- [ ] Open Settings on a fresh install, then pick ⌘, ⌃, ⇧ and Off in turn for "Modifier key to open a Shelf", also with Shake set to Off. Expected: the picker starts at Off, each change applies at once with no relaunch, and the key works with Shake Off.
 - [ ] Record a new shortcut (for example ⌃⌥⌘K). Expected: it works at once, the menu item shows it, and the old combo no longer opens a Shelf.
 - [ ] While recording, press the current combo, then Esc, then Backspace. Expected: the current combo is recorded rather than opening a Shelf; Esc restores the old one; Backspace clears it (the menu item loses its key).
 - [ ] While recording, press ⌘C, then ⌘⇧K. Expected: "Use ⌃ or ⌥ in the shortcut." shows, recording continues and the current shortcut is unchanged.

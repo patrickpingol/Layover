@@ -1,6 +1,6 @@
 # Layover
 
-Layover is a macOS menu-bar utility for temporarily collecting dragged content. Shake while dragging, or press a hot key, and a floating Shelf appears at the cursor. Drop files, text, links and images onto it, then drag everything out again when you reach the destination. Files stay where they are and are referenced in place. Layover is sandboxed and asks for no Accessibility, Input Monitoring or Screen Recording permission.
+Layover is a macOS menu-bar utility for temporarily collecting dragged content. Shake while dragging, hold an optional modifier key (chosen in Settings) during a drag, or press a hot key, and a floating Shelf appears at the cursor. Drop files, text, links and images onto it, then drag everything out again when you reach the destination. Files stay where they are and are referenced in place. Layover is sandboxed and asks for no Accessibility, Input Monitoring or Screen Recording permission.
 
 ## Install
 

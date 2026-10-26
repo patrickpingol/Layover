@@ -34,6 +34,11 @@ struct SettingsView: View {
                         Text(sensitivity.title).tag(sensitivity)
                     }
                 }
+                Picker(String(localized: "Modifier key to open a Shelf"), selection: $preferences.dragModifier) {
+                    ForEach(DragModifier.allCases, id: \.self) { modifier in
+                        Text(modifier.title).tag(modifier)
+                    }
+                }
             }
 
             Section(String(localized: "Ignored Apps")) {
@@ -54,7 +59,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: 560)
         // The user may have approved Layover in System Settings while this window was in the background.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             loginStatus = LaunchAtLogin.status
@@ -85,6 +90,17 @@ private extension ShakeSensitivity {
         case .normal: String(localized: "Normal")
         case .high: String(localized: "High")
         case .highest: String(localized: "Highest")
+        }
+    }
+}
+
+private extension DragModifier {
+    var title: String {
+        switch self {
+        case .off: String(localized: "Off")
+        case .command: String(localized: "⌘ Command")
+        case .control: String(localized: "⌃ Control")
+        case .shift: String(localized: "⇧ Shift")
         }
     }
 }
