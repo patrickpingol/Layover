@@ -20,6 +20,10 @@ _Avoid_: Temp file, generated file
 The part of a Shelf you grab to drag all its Items out at once.
 _Avoid_: Grabber, stack
 
+**Header**:
+The strip along the top of a Shelf that holds its close, pin and expand buttons.
+_Avoid_: Title bar, toolbar, Shelf edge
+
 **Shake**:
 A rapid side-to-side cursor movement during a drag that opens a new Shelf at the cursor.
 _Avoid_: Wiggle, jiggle, gesture
@@ -27,6 +31,10 @@ _Avoid_: Wiggle, jiggle, gesture
 **Drag Modifier**:
 A modifier key (⌘, ⌃ or ⇧) chosen by the user that, pressed during a drag, opens a new Shelf at the cursor as an alternative to a Shake.
 _Avoid_: Trigger key, hot key, shortcut
+
+**Notch Drop**:
+Dropping content on the notch of a Mac that has one, which opens a new Shelf holding it.
+_Avoid_: Notch shelf, notch trigger, notch drag
 
 **Ignored App**:
 An app over whose windows a Shake or Drag Modifier is ignored.
@@ -45,3 +53,13 @@ _Avoid_: History, previous shelf, closed shelf
 **Pinned Shelf**:
 A Shelf that stays open until explicitly closed and reappears after Layover relaunches.
 _Avoid_: Sticky shelf, saved shelf
+
+## Shelf placement
+
+**Docked Shelf**:
+A Shelf attached to the left or right edge of a screen, sitting flush against it until moved away. Several Docked Shelves on one edge sit one above another along it without overlapping.
+_Avoid_: Snapped shelf, edge shelf, parked shelf
+
+**Retracted Shelf**:
+A Docked Shelf slid mostly off screen past its edge, leaving only a sliver visible. It is still a Docked Shelf.
+_Avoid_: Hidden shelf, collapsed shelf, minimized shelf
