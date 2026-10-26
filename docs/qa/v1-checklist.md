@@ -143,12 +143,38 @@ Run on a Mac with a notch, with Notch Drop on and its highlight on "On hover" un
 - [ ] Turn Notch Drop off during a drag. Expected: the target goes away at once.
 - [ ] Exercise Notch Drop. Expected: no permission prompt (Accessibility, Input Monitoring or Screen Recording).
 
+## Instant Actions
+
+Run with "Instant Actions" on in Settings unless a step says otherwise. Share targets really run, so use a test recipient or a throwaway Mail or Messages draft.
+
+- [ ] Shake while dragging a Finder file, then keep the cursor over the new empty Shelf. Expected: AirDrop, Mail and Messages targets appear in one row just below the Header, each with an icon above its title, and the empty label reads "Drop below to keep".
+- [ ] Set the Drag Modifier to ⌘, press it during a drag of a Finder file, then keep the cursor over the new empty Shelf. Expected: the same targets appear.
+- [ ] Drop a Finder file on the notch to open a Shelf, choose Remove from Shelf on its Item, then drag another Finder file over that Shelf. Expected: the same targets appear.
+- [ ] Move the cursor across the targets while dragging. Expected: the target under the cursor takes the Shelf's drop highlight; the others do not.
+- [ ] Move the drag off the Shelf, then back over it. Expected: targets hide when the drag leaves and reappear when it returns.
+- [ ] Press Esc to cancel a drag over the empty Shelf. Expected: the targets hide and nothing is added.
+- [ ] Drop a Finder file on AirDrop. Expected: the AirDrop share runs on the file as it is; no Item is added to the Shelf.
+- [ ] Drop a Finder file on Mail, then on Messages. Expected: each service's compose window comes to the front with the file; no Item is added to the Shelf. Activation is cooperative on macOS 14+, so also record, for each, whether the window opened in front of the app you dragged from or behind it.
+- [ ] Drag an Owned Item (a dropped text) from Shelf A onto AirDrop in an empty Shelf B, and remove the Item from A before the AirDrop picker is answered. Expected: the share still sends the text file, and the Owned File is deleted once the share ends.
+- [ ] Drop selected text from Safari on each of AirDrop, Mail and Messages, one drag each. Expected: each service runs on the text; no Item is added; no new folder appears in `~/Library/Containers/<bundle id>/Data/Library/Application Support/dev.mauipingol.Layover/OwnedFiles/`.
+- [ ] Drop a link from Safari on each of AirDrop, Mail and Messages, one drag each. Expected: each service runs on the link; no Item is added.
+- [ ] Drop an image from a web page on each of AirDrop, Mail and Messages, one drag each. Expected: each service runs on the image; no Item is added; no new folder appears in `OwnedFiles/`.
+- [ ] Drop a Mail attachment (a promised file) on each of AirDrop, Mail and Messages, one drag each. Expected: the file is received into a staging folder first and shared from there; the service runs on it; no Item is added. Record the staging folder's path, then confirm it is deleted once the service is done (or after 600 s).
+- [ ] Where a service refuses a content type in the drops above, nothing is added and nothing is shared. Expected: the drop snaps back, except for a Mail attachment (a promised file), which is accepted at once while it is received, so the drag looks successful and the refusal only shows in the log. Record each refused combination; whether each service accepts an image or text is not yet verified.
+- [ ] Drop a Finder file on the Shelf below the target row. Expected: it is added as an Item, as before, and no sharing service runs.
+- [ ] Drop a file on a Shelf so it holds an Item, then drag another file over it. Expected: no targets show.
+- [ ] Drag an Item out of Shelf A and move it over an empty Shelf B. Expected: targets appear on B. Drop on AirDrop: the file is shared as it is, Shelf A keeps the Item, and nothing is added to B.
+- [ ] Turn "Instant Actions" off in Settings, then drag a Finder file over an empty Shelf. Expected: no targets appear; dropping on the Shelf adds Items as before and runs no service.
+- [ ] Drag a Finder file over an empty Shelf so the targets show, cancel with Esc, turn "Instant Actions" off in Settings, then drag the same file over that Shelf again. Expected: the second drag shows no targets. The setting is read when a drag enters a Shelf, so a change applies from the next drag; it can't be changed mid-drag, as the mouse button is held. This is a decided difference from Notch Drop, which reacts at once.
+
 ## Settings
 
 - [ ] Set Shake sensitivity to Off, then Normal, High and Highest. Expected: Off stops Shake immediately; the others change the thresholds with no relaunch.
 - [ ] Open Settings on a fresh install, then pick ⌘, ⌃, ⇧ and Off in turn for "Modifier key to open a Shelf", also with Shake set to Off. Expected: the picker starts at Off, each change applies at once with no relaunch, and the key works with Shake Off.
 - [ ] Open Settings on a fresh install. Expected: "Notch Drop" is on and "Notch Drop highlight" is "On hover", on any Mac, with the note "Works on displays with a notch." below them; the Settings window shows them without clipping.
 - [ ] Turn Notch Drop off, then on, and pick Always, On hover and Never in turn. Expected: the highlight picker is disabled while Notch Drop is off; each change applies at once with no relaunch (the next drag uses it), and both settings are kept after a relaunch.
+- [ ] Open Settings on a fresh install. Expected: "Instant Actions" is on, directly above "Notch Drop", and the Settings window shows it without clipping.
+- [ ] Turn "Instant Actions" off, relaunch, then open Settings. Expected: it is still off. Turn it on, relaunch: it is still on.
 - [ ] Record a new shortcut (for example ⌃⌥⌘K). Expected: it works at once, the menu item shows it, and the old combo no longer opens a Shelf.
 - [ ] While recording, press the current combo, then Esc, then Backspace. Expected: the current combo is recorded rather than opening a Shelf; Esc restores the old one; Backspace clears it (the menu item loses its key).
 - [ ] While recording, press ⌘C, then ⌘⇧K. Expected: "Use ⌃ or ⌥ in the shortcut." shows, recording continues and the current shortcut is unchanged.

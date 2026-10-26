@@ -125,14 +125,14 @@ public struct ItemImporter: Sendable {
 
     // MARK: Pasteboard reading
 
-    private static func fileURLs(in pasteboard: NSPasteboard) -> [URL] {
+    static func fileURLs(in pasteboard: NSPasteboard) -> [URL] {
         let urls = pasteboard.readObjects(
             forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]
         ) as? [URL] ?? []
         return urls.map { ($0 as NSURL).filePathURL ?? $0 }
     }
 
-    private static func webURL(in pasteboard: NSPasteboard) -> URL? {
+    static func webURL(in pasteboard: NSPasteboard) -> URL? {
         guard let string = pasteboard.string(forType: .URL)?.trimmingCharacters(in: .whitespacesAndNewlines),
               let url = URL(string: string),
               let scheme = url.scheme?.lowercased(),
@@ -234,6 +234,25 @@ final class PromiseReception {
         let contents = importer.adopt(receivedFiles: urls, stagingDirectory: stagingDirectory)
         if contents.isEmpty, let firstError { throw firstError }
         deliver(contents)
+    }
+
+    /// Waits for every promised file and returns where they arrived, without adopting them: for sharing
+    /// them in place. The caller deletes `stagingDirectory` when it is done with the files. Throws the
+    /// first error only when no file arrived, deleting the staging directory first.
+    func receiveStaged() async throws -> (urls: [URL], stagingDirectory: URL) {
+        var urls: [URL] = []
+        var firstError: Error?
+        for await result in results {
+            switch result {
+            case let .success(url): urls.append(url)
+            case let .failure(error): firstError = firstError ?? error
+            }
+        }
+        if urls.isEmpty {
+            try? FileManager.default.removeItem(at: stagingDirectory)
+            if let firstError { throw firstError }
+        }
+        return (urls, stagingDirectory)
     }
 
     /// `receive`, with a failure or an empty result logged instead of thrown.

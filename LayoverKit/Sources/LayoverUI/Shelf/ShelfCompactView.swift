@@ -22,6 +22,22 @@ final class ShelfCompactView: NSView {
     private let emptyLabel = NSTextField(wrappingLabelWithString: String(localized: "Drop files here"))
     private let handle = HandleView()
     private let moreButton = NSButton()
+    private var emptyLabelCenterY: NSLayoutConstraint!
+
+    /// Whether the Instant Actions row covers the top of the empty Shelf. The empty label then moves
+    /// below the row and says that dropping there keeps the content.
+    var showsInstantActions = false {
+        didSet {
+            guard showsInstantActions != oldValue else { return }
+            emptyLabel.stringValue = showsInstantActions ? String(localized: "Drop below to keep") : String(localized: "Drop files here")
+            emptyLabelCenterY.constant = showsInstantActions ? Self.labelCenterBelowRow : Self.labelCenterAtStack
+        }
+    }
+
+    /// The empty label's center, measured down from the top of this view: beside the stack's middle, or
+    /// in the middle of the area left under the Instant Actions row.
+    private static let labelCenterAtStack: CGFloat = 48
+    private static let labelCenterBelowRow = (InstantActionLayout.rowBottomInset + size.height - ShelfViewController.headerHeight) / 2
 
     init(thumbnails: ItemThumbnailProvider) {
         self.thumbnails = thumbnails
@@ -53,6 +69,7 @@ final class ShelfCompactView: NSView {
             view.translatesAutoresizingMaskIntoConstraints = false
             addSubview(view)
         }
+        emptyLabelCenterY = emptyLabel.centerYAnchor.constraint(equalTo: topAnchor, constant: Self.labelCenterAtStack)
         NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: centerXAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor),
@@ -63,7 +80,7 @@ final class ShelfCompactView: NSView {
             countLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
             countLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
 
-            emptyLabel.centerYAnchor.constraint(equalTo: stack.centerYAnchor),
+            emptyLabelCenterY,
             emptyLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
             emptyLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
 

@@ -40,12 +40,20 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
     /// destination may still be moving the file (Finder does, asynchronously, and may be waiting on
     /// a dialog), so cleanup keeps each one while its file is still where it was.
     private var handedOff: [UUID: OwnedFile] = [:]
+    /// Owned Files an Instant Action's service may still be reading, with the number of runs holding each.
+    /// Cleanup keeps them, even if their Item has since left every Shelf.
+    private var inUse: [UUID: Int] = [:]
     private var hasLoggedSkippedCleanup = false
+    /// What runs an Instant Action on dropped content; tests substitute their own.
+    var runInstantAction: InstantActionRunner = ItemActions.runInstantAction
+    /// Starts the access an Instant Action needs to files dragged from a Shelf; tests substitute their own.
+    var urlResolver: ItemURLResolver
 
     public init(library: ShelfLibrary, store: ShelfStore, ownedFiles: OwnedFileStore, preferences: Preferences, availability: ItemAvailabilityMonitor? = nil) {
         self.library = library
         self.store = store
         self.ownedFiles = ownedFiles
+        urlResolver = ItemURLResolver(ownedFiles: ownedFiles)
         self.preferences = preferences
         thumbnails = ItemThumbnailProvider(ownedFiles: ownedFiles)
         importer = ItemImporter(ownedFiles: ownedFiles)
@@ -196,6 +204,58 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
+    /// Returns `onEnd` made to also release what the service of an Instant Action needs from those of
+    /// `items` (file URLs) that are Items of an open Shelf. A file in place is read back from the dragging
+    /// pasteboard without its scope, and the drag source stops its own access when the drag ends, which is
+    /// before the service has read the file, so security-scoped access to it is started now. An Owned File
+    /// is kept from cleanup until the service is done, in case its Item is removed from its Shelf meanwhile.
+    /// Other URLs need nothing.
+    private func holdingAccess(to items: [Any], until onEnd: @escaping () -> Void) -> () -> Void {
+        let urls = Set(items.compactMap { ($0 as? URL).flatMap { $0.isFileURL ? $0.standardizedFileURL : nil } })
+        guard !urls.isEmpty else { return onEnd }
+        var held: [AccessedURL] = []
+        var heldOwned: [UUID] = []
+        var remaining = urls
+        for item in library.open.flatMap(\.items) {
+            guard let url = urlResolver.url(of: item)?.standardizedFileURL, remaining.remove(url) != nil else { continue }
+            switch item.content {
+            case .file:
+                if let accessed = urlResolver.startAccess(to: item) { held.append(accessed) }
+            case let .owned(file):
+                heldOwned.append(file.id)
+            }
+        }
+        guard !held.isEmpty || !heldOwned.isEmpty else { return onEnd }
+        for id in heldOwned { inUse[id, default: 0] += 1 }
+        return { [weak self] in
+            for file in held { file.stop() }
+            self?.release(heldOwned)
+            onEnd()
+        }
+    }
+
+    /// Lets go of Owned Files an Instant Action was holding, and cleans up any that no Shelf refers to now.
+    private func release(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        for id in ids {
+            let count = (inUse[id] ?? 1) - 1
+            inUse[id] = count > 0 ? count : nil
+        }
+        scheduleSave()
+    }
+
+    /// What a Shelf's controller runs for an Instant Action. `coordinator` yields the coordinator the Shelf
+    /// belongs to, or nil once it is gone: the action is then refused and `onEnd` runs at once.
+    static func instantActionRunner(of coordinator: @escaping @MainActor () -> ShelfCoordinator?) -> InstantActionRunner {
+        { action, items, onEnd in
+            guard let coordinator = coordinator() else {
+                onEnd()
+                return false
+            }
+            return coordinator.runInstantAction(action, items, coordinator.holdingAccess(to: items, until: onEnd))
+        }
+    }
+
     private func presentShelf(_ shelf: Shelf) {
         panels[shelf.id]?.controller.display(shelf, unavailableIDs: unavailable[shelf.id] ?? [])
     }
@@ -238,6 +298,8 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
         )
         controller.onAdd = { [weak self] contents in self?.add(contents, to: id) ?? [] }
         controller.isShelfOpen = { [weak self] in self?.openShelf(id) != nil }
+        controller.isInstantActionsEnabled = { [weak self] in self?.preferences.instantActionsEnabled ?? false }
+        controller.runInstantAction = Self.instantActionRunner { [weak self] in self }
         controller.onClose = { [weak self] in self?.close(id) }
         controller.onTogglePin = { [weak self] in self?.togglePin(id) }
         controller.onExpand = { [weak self] in self?.refreshAvailability(of: id) }
@@ -342,7 +404,7 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
             return
         }
         do {
-            try ownedFiles.removeUnreferenced(keeping: library.referencedOwnedFileIDs.union(idsStillHandedOff()))
+            try ownedFiles.removeUnreferenced(keeping: library.referencedOwnedFileIDs.union(idsStillHandedOff()).union(inUse.keys))
         } catch {
             Self.logger.error("Could not remove unreferenced Owned Files: \(String(describing: error), privacy: .public)")
         }

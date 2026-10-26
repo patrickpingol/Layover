@@ -17,7 +17,7 @@ final class FakeDraggingInfo: NSObject, @preconcurrency NSDraggingInfo {
 
     var draggingDestinationWindow: NSWindow? { nil }
     var draggingSourceOperationMask: NSDragOperation { .every }
-    var draggingLocation: NSPoint { .zero }
+    var draggingLocation: NSPoint = .zero
     var draggedImageLocation: NSPoint { .zero }
     var draggedImage: NSImage? { nil }
     var draggingSequenceNumber: Int { 0 }

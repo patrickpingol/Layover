@@ -578,3 +578,54 @@ private func withImporterNoThrow(_ body: (NSPasteboard) -> Void) {
         #expect(fixture.stagingDirectories.isEmpty)
     }
 }
+
+// MARK: receiveStaged
+
+@Test @MainActor func receiveStagedReturnsTheFilesWhereTheyArrivedWithoutAdoptingThem() async throws {
+    try await withPromiseFixture { fixture in
+        let receivers = [FakeReceiver([.file("one.jpg"), .file("two.jpg")]), FakeReceiver([.file("three.pdf")])]
+        let reception = PromiseReception(receivers: receivers, importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+
+        let (urls, stagingDirectory) = try await reception.receiveStaged()
+
+        #expect(Set(urls.map(\.lastPathComponent)) == ["one.jpg", "two.jpg", "three.pdf"])
+        #expect(urls.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
+        #expect(urls.allSatisfy { $0.deletingLastPathComponent().lastPathComponent == stagingDirectory.lastPathComponent })
+        #expect(fixture.stagingDirectories.map(\.lastPathComponent) == [stagingDirectory.lastPathComponent])
+        let owned = (try? FileManager.default.contentsOfDirectory(atPath: fixture.store.directory.path)) ?? []
+        #expect(owned.isEmpty)
+    }
+}
+
+@Test @MainActor func receiveStagedReturnsTheFilesThatArrivedDespiteAFailure() async throws {
+    try await withPromiseFixture { fixture in
+        let reception = PromiseReception(receivers: [FakeReceiver([.failure, .file("ok.png")])], importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+
+        let (urls, _) = try await reception.receiveStaged()
+
+        #expect(urls.map(\.lastPathComponent) == ["ok.png"])
+    }
+}
+
+@Test @MainActor func receiveStagedThrowsAndRemovesTheStagingDirectoryWhenOnlyFailuresArrive() async throws {
+    try await withPromiseFixture { fixture in
+        let reception = PromiseReception(receivers: [FakeReceiver([.failure])], importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+
+        await #expect(throws: (any Error).self) {
+            _ = try await reception.receiveStaged()
+        }
+
+        #expect(fixture.stagingDirectories.isEmpty)
+    }
+}
+
+@Test @MainActor func receiveStagedWithNoPromisedFilesReturnsNoneAndRemovesTheStagingDirectory() async throws {
+    try await withPromiseFixture { fixture in
+        let reception = PromiseReception(receivers: [FakeReceiver([])], importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+
+        let (urls, _) = try await reception.receiveStaged()
+
+        #expect(urls.isEmpty)
+        #expect(fixture.stagingDirectories.isEmpty)
+    }
+}

@@ -20,11 +20,12 @@ In:
 - **Shake** opens a new Shelf at the cursor during a drag. Sensitivity is Off / Normal / High / Highest (default Normal), plus a list of Ignored Apps.
 - **Drag Modifier** (⌘ / ⌃ / ⇧, default Off) opens a new Shelf at the cursor during a drag, under the same rules as a Shake, with or without Shake enabled.
 - **Notch Drop** (on by default) on a Mac with a notch: while a drag carries content, the notch is a drop target, and dropping on it opens a new Shelf holding the content, just below the notch. The highlight around the notch is Always / On hover / Never (default On hover); the drop works in every mode.
+- **Instant Actions** (on by default): on an empty Shelf, while a drag a Shelf would accept hovers over it, AirDrop, Mail and Messages targets appear; dropping on one shares the content without adding it to the Shelf.
 - Drop into a Shelf: files, text, links and images. Drag out of a Shelf. Several Shelves can be open at once.
 - Persistence of Shelves and a Recent Shelves menu.
 - Item actions: Open, Reveal in Finder, Quick Look, Copy, Remove, Share (system share menu: AirDrop, Mail, …).
 
-Out (deferred): edge docking and retract, Instant Actions, file transforms, folder and screenshot watching, cloud links, Shortcuts/App Intents, share extension, widget.
+Out (deferred): edge docking and retract, file transforms, folder and screenshot watching, cloud links, Shortcuts/App Intents, share extension, widget.
 
 ## Shake
 
@@ -45,6 +46,18 @@ The Drag Modifier follows the same rules, in either order with the content check
 Notch Drop is independent of Shake and the Drag Modifier: it needs neither, and it ignores Ignored Apps. While Notch Drop is on and a screen has a notch, drags are watched, and a drag that started outside a Shelf and is seen carrying real content (the same check as a Shake: the drag pasteboard changed, or a drag image is on screen) puts a transparent drop window over each notch, above the menu bar on every Space, full-screen ones included. Only the notch itself takes a drop. The window goes away when the drag ends, shortly after the mouse-up so a drop in flight still lands, and none exists between drags. A drag with nothing a Shelf accepts gets no highlight and its drop is refused.
 
 A drop is imported as it is on a Shelf: files stay where they are, text, links and images become Owned Files, and promised files (a Mail attachment) open an empty Shelf at once that receives them as they arrive. A drop that yields nothing opens no Shelf. The Shelf is a new one, placed as any new Shelf is, at the bottom center of the notch. A Notch Drop is not limited to one Shelf per drag: it is separate from a Shake's. Notch geometry comes from the screen's top safe area and the gap between its top-left and top-right auxiliary areas, so a screen without a notch has no target, and connecting or disconnecting a display (opening or closing the lid) takes effect with no relaunch. With only non-notched screens connected, Layover does not watch drags on Notch Drop's account.
+
+## Instant Actions
+
+Instant Actions are offered only on an empty Shelf, and only while a drag that a Shelf would accept hovers over it and the setting is on. They never show for a drag that started from the same Shelf, and they hide when the drag leaves, ends or drops. The targets are AirDrop, Mail and Messages, in that order; each is shown only if its sharing service exists on the Mac. Scripts and cloud upload are not included.
+
+The targets sit in one row just below the Header, each an SF Symbol above its title. The target under the cursor takes the Shelf's drop highlight. While the row shows, the empty label moves below it and reads "Drop below to keep".
+
+Dropping on a target runs that sharing service on the content, read straight from the drag: files as they are (including Owned Files dragged from another Shelf), otherwise an image (PNG or TIFF), otherwise a web link, otherwise text. Nothing is added to the Shelf and no Owned File is written. Layover asks to come forward so that a Mail or Messages compose window appears in front; on macOS 14 and later the system may decline while the app the user dragged from is frontmost, and the window then opens behind it (a known limitation). A file or an Owned File dragged from another Shelf stays reachable until the service is done: access to a file in place is held, and an Owned File is kept from cleanup even if its Item is removed meanwhile. A promised file (a Mail attachment) is received into a temporary staging folder, shared from there, and the folder is deleted when the service is done, or after 600 s. If the service cannot take the content, nothing is shared and nothing is added. The drop is refused, except for a promised file: it is accepted at once while the file is received, so the drag looks successful, and a refusal by the service afterwards is only logged.
+
+A drop anywhere else on the Shelf, below the row, adds Items exactly as before. The drop is always a copy, so a drag from another Shelf never removes Items there.
+
+The setting is read when a drag enters a Shelf, so a change applies from the next drag. A mouse button is held throughout a drag, so it can't be changed mid-drag. This is a decided difference from Notch Drop, whose target goes away at once when it is turned off.
 
 ## Shelves and Items
 
@@ -67,7 +80,7 @@ A drop is imported as it is on a Shelf: files stay where they are, text, links a
 
 ## Settings (v1, exactly)
 
-Launch at login (asked once on first run) · Shake on/off and sensitivity · Drag Modifier (Off / ⌘ / ⌃ / ⇧, default Off) · Notch Drop on/off (default On) and its highlight (Always / On hover / Never, default On hover) · Ignored Apps · New Shelf hotkey · Close Shelf when emptied · Show in menu bar.
+Launch at login (asked once on first run) · Shake on/off and sensitivity · Drag Modifier (Off / ⌘ / ⌃ / ⇧, default Off) · Instant Actions on/off (default On) · Notch Drop on/off (default On) and its highlight (Always / On hover / Never, default On hover) · Ignored Apps · New Shelf hotkey · Close Shelf when emptied · Show in menu bar.
 
 ## Testing
 

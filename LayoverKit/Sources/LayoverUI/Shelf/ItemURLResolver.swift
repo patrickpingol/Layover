@@ -5,15 +5,17 @@ import LayoverCore
 struct AccessedURL {
     let url: URL
     private let isScoped: Bool
+    private let stopScoped: (URL) -> Void
 
-    fileprivate init(url: URL, isScoped: Bool) {
+    fileprivate init(url: URL, isScoped: Bool, stopScoped: @escaping (URL) -> Void) {
         self.url = url
         self.isScoped = isScoped
+        self.stopScoped = stopScoped
     }
 
     /// Ends the access this value started. Call it once.
     func stop() {
-        if isScoped { url.stopAccessingSecurityScopedResource() }
+        if isScoped { stopScoped(url) }
     }
 }
 
@@ -22,10 +24,21 @@ struct AccessedURL {
 struct ItemURLResolver {
     private let ownedFiles: OwnedFileStore
     private let volumes: MountedVolumes
+    private let startScoped: (URL) -> Bool
+    private let stopScoped: (URL) -> Void
 
-    init(ownedFiles: OwnedFileStore, volumes: MountedVolumes = SystemMountedVolumes()) {
+    /// `startScoped` and `stopScoped` begin and end the security-scoped access to a file in place; tests
+    /// substitute their own to see when access is held.
+    init(
+        ownedFiles: OwnedFileStore,
+        volumes: MountedVolumes = SystemMountedVolumes(),
+        startScoped: @escaping (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
+        stopScoped: @escaping (URL) -> Void = { $0.stopAccessingSecurityScopedResource() }
+    ) {
         self.ownedFiles = ownedFiles
         self.volumes = volumes
+        self.startScoped = startScoped
+        self.stopScoped = stopScoped
     }
 
     /// The URL of `item`'s file, or nil when it can't be reached right now. Starts no access.
@@ -42,7 +55,7 @@ struct ItemURLResolver {
     /// `stop()` on the result when it is done with the file.
     func startAccess(to item: Item) -> AccessedURL? {
         guard let url = url(of: item) else { return nil }
-        guard case .file = item.content else { return AccessedURL(url: url, isScoped: false) }
-        return AccessedURL(url: url, isScoped: url.startAccessingSecurityScopedResource())
+        guard case .file = item.content else { return AccessedURL(url: url, isScoped: false, stopScoped: stopScoped) }
+        return AccessedURL(url: url, isScoped: startScoped(url), stopScoped: stopScoped)
     }
 }

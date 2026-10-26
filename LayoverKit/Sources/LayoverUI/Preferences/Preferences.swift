@@ -11,6 +11,7 @@ public final class Preferences: ObservableObject {
         static let dragModifier = "dragModifier"
         static let notchDropEnabled = "notchDropEnabled"
         static let notchDropHighlight = "notchDropHighlight"
+        static let instantActionsEnabled = "instantActionsEnabled"
         static let ignoredBundleIDs = "ignoredBundleIDs"
         static let newShelfHotKey = "newShelfHotKey"
         static let closeShelfWhenEmptied = "closeShelfWhenEmptied"
@@ -35,6 +36,10 @@ public final class Preferences: ObservableObject {
 
     @Published public var notchDropHighlight: NotchDropHighlight {
         didSet { defaults.set(notchDropHighlight.rawValue, forKey: Key.notchDropHighlight) }
+    }
+
+    @Published public var instantActionsEnabled: Bool {
+        didSet { defaults.set(instantActionsEnabled, forKey: Key.instantActionsEnabled) }
     }
 
     @Published public var ignoredBundleIDs: [String] {
@@ -68,6 +73,7 @@ public final class Preferences: ObservableObject {
         dragModifier = defaults.string(forKey: Key.dragModifier).flatMap(DragModifier.init) ?? .off
         notchDropEnabled = defaults.object(forKey: Key.notchDropEnabled) as? Bool ?? true
         notchDropHighlight = defaults.string(forKey: Key.notchDropHighlight).flatMap(NotchDropHighlight.init) ?? .onHover
+        instantActionsEnabled = defaults.object(forKey: Key.instantActionsEnabled) as? Bool ?? true
         ignoredBundleIDs = defaults.stringArray(forKey: Key.ignoredBundleIDs) ?? []
         newShelfHotKey = Self.decodeHotKey(defaults.data(forKey: Key.newShelfHotKey))
         closeShelfWhenEmptied = defaults.object(forKey: Key.closeShelfWhenEmptied) as? Bool ?? true

@@ -111,6 +111,17 @@
         }
       }
     },
+    "Drop below to keep": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop below to keep"
+          }
+        }
+      }
+    },
     "Close Shelf": {
       "extractionState": "manual",
       "localizations": {
@@ -361,6 +372,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "⇧ Shift"
+          }
+        }
+      }
+    },
+    "Instant Actions": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instant Actions"
+          }
+        }
+      }
+    },
+    "AirDrop": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AirDrop"
+          }
+        }
+      }
+    },
+    "Mail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mail"
+          }
+        }
+      }
+    },
+    "Messages": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages"
           }
         }
       }

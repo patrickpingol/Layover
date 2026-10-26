@@ -13,6 +13,7 @@ private func makeDefaults() -> UserDefaults {
     #expect(preferences.dragModifier == .off)
     #expect(preferences.notchDropEnabled)
     #expect(preferences.notchDropHighlight == .onHover)
+    #expect(preferences.instantActionsEnabled)
     #expect(preferences.ignoredBundleIDs == [])
     #expect(preferences.newShelfHotKey == .defaultNewShelf)
     #expect(preferences.closeShelfWhenEmptied)
@@ -34,6 +35,7 @@ private func makeDefaults() -> UserDefaults {
     preferences.dragModifier = .control
     preferences.notchDropEnabled = false
     preferences.notchDropHighlight = .never
+    preferences.instantActionsEnabled = false
     preferences.ignoredBundleIDs = ["com.apple.Safari", "com.apple.Notes"]
     preferences.newShelfHotKey = hotKey
     preferences.closeShelfWhenEmptied = false
@@ -46,6 +48,7 @@ private func makeDefaults() -> UserDefaults {
     #expect(reloaded.dragModifier == .control)
     #expect(!reloaded.notchDropEnabled)
     #expect(reloaded.notchDropHighlight == .never)
+    #expect(!reloaded.instantActionsEnabled)
     #expect(reloaded.ignoredBundleIDs == ["com.apple.Safari", "com.apple.Notes"])
     #expect(reloaded.newShelfHotKey == hotKey)
     #expect(!reloaded.closeShelfWhenEmptied)

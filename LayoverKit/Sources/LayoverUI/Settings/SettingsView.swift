@@ -39,6 +39,7 @@ struct SettingsView: View {
                         Text(modifier.title).tag(modifier)
                     }
                 }
+                Toggle(String(localized: "Instant Actions"), isOn: $preferences.instantActionsEnabled)
                 Toggle(String(localized: "Notch Drop"), isOn: $preferences.notchDropEnabled)
                 Picker(String(localized: "Notch Drop highlight"), selection: $preferences.notchDropHighlight) {
                     ForEach(NotchDropHighlight.allCases, id: \.self) { highlight in

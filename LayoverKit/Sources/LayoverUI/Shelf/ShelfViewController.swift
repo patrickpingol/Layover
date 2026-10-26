@@ -1,11 +1,13 @@
 import AppKit
 import LayoverCore
+import os
 
 /// One Shelf's content: the close, pin and expand buttons above either the compact stack or the grid.
 /// It only presents; the coordinator owns the Shelf and applies the button actions.
 @MainActor
 final class ShelfViewController: NSViewController {
-    private static let headerHeight: CGFloat = 28
+    nonisolated static let headerHeight: CGFloat = 28
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "dev.mauipingol.Layover", category: "Drops")
 
     var onClose: () -> Void = {}
     var onTogglePin: () -> Void = {}
@@ -16,6 +18,10 @@ final class ShelfViewController: NSViewController {
     var onAdd: ([ItemContent]) -> [Shelf.AddOutcome] = { _ in [] }
     /// Whether the Shelf is still open, so promised files arriving late can be discarded.
     var isShelfOpen: () -> Bool = { false }
+    /// Whether the Instant Actions setting is on. Read when a drag enters, so a change applies from the next drag.
+    var isInstantActionsEnabled: () -> Bool = { false }
+    /// What runs an Instant Action on the dropped content.
+    var runInstantAction: InstantActionRunner = ItemActions.runInstantAction
 
     private let importer: ItemImporter
     private let dragSource: ShelfDragSource
@@ -26,6 +32,7 @@ final class ShelfViewController: NSViewController {
 
     private let compactView: ShelfCompactView
     private let noticeView = ShelfNoticeView()
+    private let instantActionsView = InstantActionsView()
     private let gridController: ShelfGridViewController
     private let closeButton = ShelfViewController.makeButton()
     private let pinButton = ShelfViewController.makeButton()
@@ -61,6 +68,18 @@ final class ShelfViewController: NSViewController {
         let root = ShelfDropView(frame: CGRect(origin: .zero, size: ShelfCompactView.size))
         root.dragSource = dragSource
         root.onDrop = { [weak self] pasteboard in self?.handleDrop(pasteboard) ?? false }
+        root.showsInstantActions = { [weak self, weak root] in
+            guard let self, let root else { return false }
+            return !InstantAction.targets(
+                isEnabled: isInstantActionsEnabled(), shelfIsEmpty: shelf.items.isEmpty, available: root.availableInstantActions
+            ).isEmpty
+        }
+        root.onInstantAction = { [weak self] action, pasteboard in self?.handleInstantAction(action, pasteboard) ?? false }
+        root.onInstantActionsChange = { [weak self, weak root] in
+            guard let self, let root else { return }
+            instantActionsView.display(root.instantActionTargets, highlighted: root.highlightedAction)
+            compactView.showsInstantActions = root.isShowingInstantActions
+        }
         addChild(gridController)
 
         closeButton.action = #selector(close)
@@ -100,6 +119,16 @@ final class ShelfViewController: NSViewController {
                 view.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             ])
         }
+        // The row covers the whole Shelf so its targets can sit where `InstantActionLayout` puts them;
+        // it takes no clicks or drags.
+        instantActionsView.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(instantActionsView)
+        NSLayoutConstraint.activate([
+            instantActionsView.topAnchor.constraint(equalTo: root.topAnchor),
+            instantActionsView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            instantActionsView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            instantActionsView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
         noticeView.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(noticeView)
         NSLayoutConstraint.activate([
@@ -161,6 +190,47 @@ final class ShelfViewController: NSViewController {
             return true
         case nil:
             return false
+        }
+    }
+
+    /// Runs `action` on what was dropped, as sharing items read straight from the pasteboard: nothing
+    /// is added to the Shelf and no Owned File is made. Returns false when there was nothing to share
+    /// or the service couldn't take it.
+    private func handleInstantAction(_ action: InstantAction, _ pasteboard: NSPasteboard) -> Bool {
+        // Receiving promised files must start now, while the dragging pasteboard is still valid.
+        if let reception = importer.beginReceivingPromises(from: pasteboard) {
+            let run = runInstantAction
+            Task { await Self.perform(action, afterReceiving: reception, using: run) }
+            return true
+        }
+        let items = InstantActionContent.items(from: pasteboard)
+        guard !items.isEmpty else {
+            Self.logger.notice("An Instant Action drop had nothing to share")
+            return false
+        }
+        guard runInstantAction(action, items, {}) else {
+            Self.logger.error("The \(String(describing: action), privacy: .public) service could not take the dropped content")
+            return false
+        }
+        return true
+    }
+
+    /// Runs `action` on the promised files once they have arrived, then deletes where they were put.
+    static func perform(_ action: InstantAction, afterReceiving reception: PromiseReception, using run: InstantActionRunner) async {
+        do {
+            let (urls, stagingDirectory) = try await reception.receiveStaged()
+            guard !urls.isEmpty else {
+                logger.notice("An Instant Action drop of promised files yielded no files")
+                return
+            }
+            let started = run(action, urls) {
+                try? FileManager.default.removeItem(at: stagingDirectory)
+            }
+            if !started {
+                logger.error("The \(String(describing: action), privacy: .public) service could not take the promised files")
+            }
+        } catch {
+            logger.error("Could not receive promised files: \(String(describing: error), privacy: .public)")
         }
     }
 
