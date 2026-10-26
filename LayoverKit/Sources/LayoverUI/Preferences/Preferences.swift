@@ -9,6 +9,8 @@ public final class Preferences: ObservableObject {
     private enum Key {
         static let shakeSensitivity = "shakeSensitivity"
         static let dragModifier = "dragModifier"
+        static let notchDropEnabled = "notchDropEnabled"
+        static let notchDropHighlight = "notchDropHighlight"
         static let ignoredBundleIDs = "ignoredBundleIDs"
         static let newShelfHotKey = "newShelfHotKey"
         static let closeShelfWhenEmptied = "closeShelfWhenEmptied"
@@ -25,6 +27,14 @@ public final class Preferences: ObservableObject {
 
     @Published public var dragModifier: DragModifier {
         didSet { defaults.set(dragModifier.rawValue, forKey: Key.dragModifier) }
+    }
+
+    @Published public var notchDropEnabled: Bool {
+        didSet { defaults.set(notchDropEnabled, forKey: Key.notchDropEnabled) }
+    }
+
+    @Published public var notchDropHighlight: NotchDropHighlight {
+        didSet { defaults.set(notchDropHighlight.rawValue, forKey: Key.notchDropHighlight) }
     }
 
     @Published public var ignoredBundleIDs: [String] {
@@ -56,6 +66,8 @@ public final class Preferences: ObservableObject {
         self.defaults = defaults
         shakeSensitivity = defaults.string(forKey: Key.shakeSensitivity).flatMap(ShakeSensitivity.init) ?? .normal
         dragModifier = defaults.string(forKey: Key.dragModifier).flatMap(DragModifier.init) ?? .off
+        notchDropEnabled = defaults.object(forKey: Key.notchDropEnabled) as? Bool ?? true
+        notchDropHighlight = defaults.string(forKey: Key.notchDropHighlight).flatMap(NotchDropHighlight.init) ?? .onHover
         ignoredBundleIDs = defaults.stringArray(forKey: Key.ignoredBundleIDs) ?? []
         newShelfHotKey = Self.decodeHotKey(defaults.data(forKey: Key.newShelfHotKey))
         closeShelfWhenEmptied = defaults.object(forKey: Key.closeShelfWhenEmptied) as? Bool ?? true

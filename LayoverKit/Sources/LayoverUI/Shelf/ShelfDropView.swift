@@ -32,11 +32,9 @@ final class ShelfDropView: NSView {
     override func updateLayer() {
         guard let layer else { return }
         layer.cornerRadius = ShelfPanel.cornerRadius
-        layer.borderWidth = isTargeted ? 2 : 0
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer.borderColor = NSColor.controlAccentColor.cgColor
-            layer.backgroundColor = isTargeted ? NSColor.controlAccentColor.withAlphaComponent(0.15).cgColor : nil
-        }
+        layer.borderWidth = isTargeted ? DropHighlightStyle.borderWidth : 0
+        layer.borderColor = DropHighlightStyle.borderColor(in: effectiveAppearance)
+        layer.backgroundColor = isTargeted ? DropHighlightStyle.fillColor(in: effectiveAppearance) : nil
     }
 
     // MARK: NSDraggingDestination
@@ -70,8 +68,14 @@ final class ShelfDropView: NSView {
         return (source as? NSView)?.isDescendant(of: self) == true
     }
 
+    /// Whether a drag from `source` (`NSDraggingInfo.draggingSource`) started in some Shelf: from a
+    /// Shelf's drag source (the Handle) or from a view inside a Shelf's window (the grid).
+    static func isShelfDrag(from source: Any?) -> Bool {
+        source is ShelfDragSource || (source as? NSView)?.window is ShelfPanel
+    }
+
     private func accepts(_ sender: any NSDraggingInfo) -> Bool {
         !isOwnDrag(from: sender.draggingSource)
-            && sender.draggingPasteboard.availableType(from: ItemImporter.acceptedTypes) != nil
+            && ItemImporter.accepts(sender.draggingPasteboard)
     }
 }

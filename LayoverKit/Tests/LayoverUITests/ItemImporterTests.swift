@@ -379,3 +379,202 @@ private func withPromiseFixture(_ body: (PromiseFixture) async throws -> Void) a
         #expect(owned.isEmpty)
     }
 }
+
+// MARK: accepts(_:) and droppedContent(from:)
+
+private let unknownType = NSPasteboard.PasteboardType("com.example.unknown")
+
+@Test @MainActor func aPasteboardAcceptsEveryKindOfContentAShelfTakes() throws {
+    try withImporter { _, pasteboard, _, root in
+        pasteboard.writeObjects([try makeFile(named: "a.txt", in: root) as NSURL])
+        #expect(ItemImporter.accepts(pasteboard))
+
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.URL], owner: nil)
+        pasteboard.setString("https://example.com", forType: .URL)
+        #expect(ItemImporter.accepts(pasteboard))
+
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("hello", forType: .string)
+        #expect(ItemImporter.accepts(pasteboard))
+
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.png], owner: nil)
+        pasteboard.setData(pngSignature, forType: .png)
+        #expect(ItemImporter.accepts(pasteboard))
+
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.tiff], owner: nil)
+        pasteboard.setData(Data([0]), forType: .tiff)
+        #expect(ItemImporter.accepts(pasteboard))
+    }
+}
+
+@Test @MainActor func aPasteboardWithAFilePromiseIsAccepted() {
+    withImporterNoThrow { pasteboard in
+        let provider = NSFilePromiseProvider(fileType: "public.plain-text", delegate: PromiseStub())
+        pasteboard.writeObjects([provider])
+
+        #expect(ItemImporter.accepts(pasteboard))
+    }
+}
+
+@Test @MainActor func aPasteboardWithNothingAShelfTakesIsNotAccepted() throws {
+    try withImporter { _, pasteboard, _, _ in
+        #expect(!ItemImporter.accepts(pasteboard))
+
+        pasteboard.declareTypes([unknownType], owner: nil)
+        pasteboard.setString("x", forType: unknownType)
+        #expect(!ItemImporter.accepts(pasteboard))
+    }
+}
+
+@Test @MainActor func aShelfAcceptsEveryTypeItRegistersForAndNoOther() {
+    let types = Set(ItemImporter.acceptedTypes)
+
+    #expect(types.isSuperset(of: [.fileURL, .URL, .png, .tiff, .string]))
+    #expect(!types.contains(unknownType))
+}
+
+@Test @MainActor func droppedContentIsTheContentsWhenThereAreNoPromises() throws {
+    try withImporter { importer, pasteboard, _, root in
+        let file = try makeFile(named: "a.txt", in: root)
+        pasteboard.writeObjects([file as NSURL])
+
+        guard case let .contents(contents) = importer.droppedContent(from: pasteboard) else {
+            Issue.record("Expected contents")
+            return
+        }
+
+        #expect(contents.compactMap(fileReference).map(\.lastKnownPath) == [file.path])
+    }
+}
+
+@Test @MainActor func droppedContentIsNilForAnEmptyOrUnusablePasteboard() throws {
+    try withImporter { importer, pasteboard, _, root in
+        #expect(importer.droppedContent(from: pasteboard) == nil)
+
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString("", forType: .string)
+        #expect(importer.droppedContent(from: pasteboard) == nil)
+
+        pasteboard.clearContents()
+        pasteboard.writeObjects([root.appendingPathComponent("missing.txt") as NSURL])
+        #expect(importer.droppedContent(from: pasteboard) == nil)
+    }
+}
+
+@Test @MainActor func droppedContentFavorsFilesOverStringsLikeTheShelfDid() throws {
+    try withImporter { importer, pasteboard, _, root in
+        let file = try makeFile(named: "a.txt", in: root)
+        pasteboard.writeObjects([file as NSURL])
+        pasteboard.addTypes([.string], owner: nil)
+        pasteboard.setString("a.txt", forType: .string)
+
+        guard case let .contents(contents) = importer.droppedContent(from: pasteboard) else {
+            Issue.record("Expected contents")
+            return
+        }
+
+        #expect(contents.count == 1)
+        #expect(fileReference(contents[0])?.lastKnownPath == file.path)
+    }
+}
+
+@Test @MainActor func droppedContentTakesPromisesAtOnceInsteadOfContents() {
+    withImporterNoThrow { pasteboard in
+        let store = OwnedFileStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("owned-\(UUID())"))
+        let importer = ItemImporter(ownedFiles: store, securityScoped: false)
+        let stub = PromiseStub()
+        pasteboard.writeObjects([NSFilePromiseProvider(fileType: "public.plain-text", delegate: stub)])
+        pasteboard.addTypes([.string], owner: nil)
+        pasteboard.setString("also a string", forType: .string)
+
+        guard case .promises = importer.droppedContent(from: pasteboard) else {
+            Issue.record("Expected promises")
+            return
+        }
+        withExtendedLifetime(stub) {}
+    }
+}
+
+@Test @MainActor func droppedContentIgnoresPromisesWhenFilesArePresent() throws {
+    try withImporter { importer, pasteboard, _, root in
+        let stub = PromiseStub()
+        pasteboard.writeObjects([try makeFile(named: "a.txt", in: root) as NSURL, NSFilePromiseProvider(fileType: "public.plain-text", delegate: stub)])
+
+        guard case let .contents(contents) = importer.droppedContent(from: pasteboard) else {
+            Issue.record("Expected contents, since a promise beside a file URL is not received")
+            return
+        }
+
+        #expect(contents.count == 1)
+        withExtendedLifetime(stub) {}
+    }
+}
+
+private final class PromiseStub: NSObject, NSFilePromiseProviderDelegate {
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String { "p.txt" }
+
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, writePromiseTo url: URL, completionHandler: @escaping ((any Error)?) -> Void) {
+        completionHandler(nil)
+    }
+}
+
+@MainActor
+private func withImporterNoThrow(_ body: (NSPasteboard) -> Void) {
+    let pasteboard = NSPasteboard(name: .init("test-\(UUID())"))
+    pasteboard.clearContents()
+    defer { pasteboard.releaseGlobally() }
+    body(pasteboard)
+}
+
+// MARK: receiveAndLog
+
+@Test @MainActor func receiveAndLogDeliversTheFilesLikeReceive() async throws {
+    try await withPromiseFixture { fixture in
+        let reception = PromiseReception(receivers: [FakeReceiver([.file("a.png")])], importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+        var delivered: [ItemContent] = []
+
+        await reception.receiveAndLog(shouldAdopt: { true }) { delivered = $0 }
+
+        #expect(delivered.compactMap(ownedFile).map(\.filename) == ["a.png"])
+        #expect(fixture.stagingDirectories.isEmpty)
+    }
+}
+
+@Test @MainActor func receiveAndLogSwallowsAFailureAndDeliversNothing() async throws {
+    try await withPromiseFixture { fixture in
+        let reception = PromiseReception(receivers: [FakeReceiver([.failure])], importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+        var wasDelivered = false
+
+        await reception.receiveAndLog(shouldAdopt: { true }) { _ in wasDelivered = true }
+
+        #expect(!wasDelivered)
+        #expect(fixture.stagingDirectories.isEmpty)
+    }
+}
+
+@Test @MainActor func receiveAndLogDeliversAnEmptyResultSoTheCallerCanTellNothingArrived() async throws {
+    try await withPromiseFixture { fixture in
+        let reception = PromiseReception(receivers: [FakeReceiver([])], importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+        var delivered: [ItemContent]?
+
+        await reception.receiveAndLog(shouldAdopt: { true }) { delivered = $0 }
+
+        #expect(delivered?.isEmpty == true)
+    }
+}
+
+@Test @MainActor func receiveAndLogDeliversNothingWhenTheShelfIsGone() async throws {
+    try await withPromiseFixture { fixture in
+        let reception = PromiseReception(receivers: [FakeReceiver([.file("late.jpg")])], importer: fixture.importer, stagingRoot: fixture.stagingRoot)
+        var wasDelivered = false
+
+        await reception.receiveAndLog(shouldAdopt: { false }) { _ in wasDelivered = true }
+
+        #expect(!wasDelivered)
+        #expect(fixture.stagingDirectories.isEmpty)
+    }
+}

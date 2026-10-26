@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: ShelfCoordinator?
     private var statusMenu: StatusMenuController?
     private var dragMonitor: DragMonitor?
+    private var notchDrop: NotchDropController?
     private var hotKeyCenter: HotKeyCenter?
     private var settingsWindow: SettingsWindowController?
     private var subscriptions: Set<AnyCancellable> = []
@@ -43,10 +44,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { statusMenu.setVisible($0) }
             .store(in: &subscriptions)
 
+        let notchDrop = NotchDropController(preferences: preferences, coordinator: coordinator)
+        self.notchDrop = notchDrop
+
         let dragMonitor = DragMonitor(
             preferences: preferences,
             isShelfWindow: { [weak coordinator] in coordinator?.isShelfWindow(number: $0) ?? false },
-            onNewShelf: { [weak coordinator] in coordinator?.openNewShelf(at: $0) }
+            onNewShelf: { [weak coordinator] in coordinator?.openNewShelf(at: $0) },
+            onContentDragBegan: { [weak notchDrop] in notchDrop?.contentDragBegan() },
+            onDragEnded: { [weak notchDrop] in notchDrop?.dragEnded() }
         )
         dragMonitor.start()
         self.dragMonitor = dragMonitor

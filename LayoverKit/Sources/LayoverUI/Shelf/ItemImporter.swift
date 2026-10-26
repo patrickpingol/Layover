@@ -11,6 +11,7 @@ public struct ItemImporter: Sendable {
     public static let acceptedTypes: [NSPasteboard.PasteboardType] =
         [.fileURL, .URL, .png, .tiff, .string] + NSFilePromiseReceiver.readableDraggedTypes.map { .init($0) }
 
+    fileprivate static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "dev.mauipingol.Layover", category: "Drops")
     private static let urlNameType = NSPasteboard.PasteboardType("public.url-name")
     private static let webSchemes: Set<String> = ["http", "https"]
 
@@ -49,6 +50,27 @@ public struct ItemImporter: Sendable {
             return [.owned(try ownedFiles.makeText(string))]
         }
         return []
+    }
+
+    /// Whether the pasteboard has anything a drop on a Shelf would try to take.
+    public static func accepts(_ pasteboard: NSPasteboard) -> Bool {
+        pasteboard.availableType(from: acceptedTypes) != nil
+    }
+
+    /// What a drop of `pasteboard` brings: promised files (received separately) first, else the
+    /// non-empty contents. Nil when there is nothing to take, or the import failed (logged).
+    /// Receiving promises starts now, so call this synchronously from the drop handler, while the
+    /// dragging pasteboard is still valid.
+    @MainActor
+    func droppedContent(from pasteboard: NSPasteboard) -> DroppedContent? {
+        if let reception = beginReceivingPromises(from: pasteboard) { return .promises(reception) }
+        do {
+            let contents = try contents(from: pasteboard)
+            return contents.isEmpty ? nil : .contents(contents)
+        } catch {
+            Self.logger.error("Could not import the dropped content: \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
 
     private func fileContent(at url: URL) -> ItemContent? {
@@ -124,6 +146,12 @@ public struct ItemImporter: Sendable {
         guard let tiff = pasteboard.data(forType: .tiff) else { return nil }
         return NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
     }
+}
+
+/// What a drop on a Shelf or the notch brings, as `ItemImporter.droppedContent(from:)` sorts it.
+enum DroppedContent {
+    case promises(PromiseReception)
+    case contents([ItemContent])
 }
 
 /// What `PromiseReception` needs from an `NSFilePromiseReceiver`; tests substitute a fake.
@@ -206,5 +234,17 @@ final class PromiseReception {
         let contents = importer.adopt(receivedFiles: urls, stagingDirectory: stagingDirectory)
         if contents.isEmpty, let firstError { throw firstError }
         deliver(contents)
+    }
+
+    /// `receive`, with a failure or an empty result logged instead of thrown.
+    func receiveAndLog(shouldAdopt: () -> Bool, deliver: ([ItemContent]) -> Void) async {
+        do {
+            try await receive(shouldAdopt: shouldAdopt) { contents in
+                if contents.isEmpty { ItemImporter.logger.notice("A drop of promised files yielded no files") }
+                deliver(contents)
+            }
+        } catch {
+            ItemImporter.logger.error("Could not receive promised files: \(String(describing: error), privacy: .public)")
+        }
     }
 }

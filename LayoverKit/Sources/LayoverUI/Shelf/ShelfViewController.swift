@@ -1,13 +1,11 @@
 import AppKit
 import LayoverCore
-import os
 
 /// One Shelf's content: the close, pin and expand buttons above either the compact stack or the grid.
 /// It only presents; the coordinator owns the Shelf and applies the button actions.
 @MainActor
 final class ShelfViewController: NSViewController {
     private static let headerHeight: CGFloat = 28
-    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "dev.mauipingol.Layover", category: "Drops")
 
     var onClose: () -> Void = {}
     var onTogglePin: () -> Void = {}
@@ -149,29 +147,19 @@ final class ShelfViewController: NSViewController {
 
     private func handleDrop(_ pasteboard: NSPasteboard) -> Bool {
         // Receiving promised files must start now, while the dragging pasteboard is still valid.
-        if let reception = importer.beginReceivingPromises(from: pasteboard) {
+        switch importer.droppedContent(from: pasteboard) {
+        case let .promises(reception):
             Task { [weak self] in
-                do {
-                    try await reception.receive(
-                        shouldAdopt: { self?.isShelfOpen() ?? false },
-                        deliver: { contents in
-                            if contents.isEmpty { Self.logger.notice("A drop of promised files yielded no files") }
-                            self?.add(contents)
-                        }
-                    )
-                } catch {
-                    Self.logger.error("Could not receive promised files: \(String(describing: error), privacy: .public)")
-                }
+                await reception.receiveAndLog(
+                    shouldAdopt: { self?.isShelfOpen() ?? false },
+                    deliver: { self?.add($0) }
+                )
             }
             return true
-        }
-        do {
-            let contents = try importer.contents(from: pasteboard)
-            guard !contents.isEmpty else { return false }
+        case let .contents(contents):
             add(contents)
             return true
-        } catch {
-            Self.logger.error("Could not import the dropped content: \(String(describing: error), privacy: .public)")
+        case nil:
             return false
         }
     }

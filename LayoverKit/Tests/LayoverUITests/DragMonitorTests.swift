@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CoreGraphics
 import Foundation
 import Testing
@@ -25,12 +26,22 @@ private final class Harness {
     var showsDragImage = false
     var windowLookups = 0
     var shakes: [CGPoint] = []
+    let notchPresence: CurrentValueSubject<Bool, Never>
+    var targetShown = 0
+    var targetHidden = 0
     private(set) var monitor: DragMonitor!
     private var time = Date(timeIntervalSince1970: 0)
 
-    init(sensitivity: ShakeSensitivity = .normal, dragModifier: DragModifier = .off) {
+    init(
+        sensitivity: ShakeSensitivity = .normal,
+        dragModifier: DragModifier = .off,
+        notchedScreen: Bool = false,
+        notchDropEnabled: Bool = true
+    ) {
         preferences.shakeSensitivity = sensitivity
         preferences.dragModifier = dragModifier
+        preferences.notchDropEnabled = notchDropEnabled
+        notchPresence = CurrentValueSubject(notchedScreen)
         monitor = DragMonitor(
             preferences: preferences,
             isShelfWindow: { [unowned self] in self.shelfWindowNumbers.contains($0) },
@@ -42,7 +53,10 @@ private final class Harness {
                 self.watcher.onChange = onChange
                 return self.watcher
             },
-            onNewShelf: { [unowned self] in self.shakes.append($0) }
+            onNewShelf: { [unowned self] in self.shakes.append($0) },
+            onContentDragBegan: { [unowned self] in self.targetShown += 1 },
+            onDragEnded: { [unowned self] in self.targetHidden += 1 },
+            notchedScreenPresence: notchPresence.eraseToAnyPublisher()
         )
     }
 
@@ -813,4 +827,408 @@ private let leftCommandDeviceBit = NSEvent.ModifierFlags(rawValue: 0x8)
     #expect(harness.shakes.count == 1)
     harness.drag(x: 5, modifiers: .shift)
     #expect(harness.shakes.count == 2)
+}
+
+// MARK: Notch Drop
+
+@Test @MainActor func theNotchTargetShowsWhenTheDragPasteboardChanges() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+
+    harness.drag(x: 0)
+    #expect(harness.targetShown == 0)
+
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 1)
+}
+
+@Test @MainActor func theNotchTargetShowsWhenADragImageIsOnScreen() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.showsDragImage = true
+
+    harness.drag(x: 0)
+
+    #expect(harness.targetShown == 1)
+}
+
+@Test @MainActor func aDragWithNoContentNeverShowsTheNotchTarget() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+
+    harness.drag(x: 0)
+    harness.drag(x: 10)
+    harness.mouseUp()
+
+    #expect(harness.targetShown == 0)
+    #expect(harness.targetHidden == 0)
+}
+
+@Test @MainActor func theNotchTargetShowsOncePerDrag() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.showsDragImage = true
+
+    harness.drag(x: 0)
+    harness.drag(x: 10, dt: 0.2)
+    harness.pasteboardChanged()
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 1)
+
+    harness.mouseUp()
+    harness.drag(x: 0)
+    #expect(harness.targetShown == 2)
+}
+
+@Test @MainActor func theNotchTargetHidesOnMouseUp() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+    #expect(harness.targetHidden == 0)
+
+    harness.mouseUp()
+    #expect(harness.targetHidden == 1)
+
+    harness.mouseUp()
+    #expect(harness.targetHidden == 1)
+}
+
+@Test @MainActor func aDragThatStartsOnAShelfNeverShowsTheNotchTarget() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.shelfWindowNumbers = [7]
+    harness.showsDragImage = true
+
+    harness.drag(x: 0, windowNumber: 7)
+    harness.pasteboardChanged()
+    harness.mouseUp()
+
+    #expect(harness.targetShown == 0)
+    #expect(harness.targetHidden == 0)
+}
+
+@Test @MainActor func noNotchTargetShowsWhileNotchDropIsOff() {
+    let harness = Harness(notchedScreen: true, notchDropEnabled: false)
+    harness.showsDragImage = true
+
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+
+    #expect(harness.targetShown == 0)
+}
+
+@Test @MainActor func noNotchTargetShowsWithoutANotchedScreen() {
+    let harness = Harness(notchedScreen: false)
+    harness.showsDragImage = true
+
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+
+    #expect(harness.targetShown == 0)
+}
+
+@Test @MainActor func aNotchedScreenAloneKeepsMonitoringOnWhileShakeAndTheModifierAreOff() {
+    let harness = Harness(sensitivity: .off, dragModifier: .off, notchedScreen: true)
+
+    harness.monitor.start()
+
+    #expect(harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func withoutANotchedScreenOrOtherTriggersNothingIsMonitored() {
+    let harness = Harness(sensitivity: .off, dragModifier: .off, notchedScreen: false)
+
+    harness.monitor.start()
+
+    #expect(!harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func turningNotchDropOffStopsMonitoringWhenNothingElseNeedsIt() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.monitor.start()
+    #expect(harness.monitor.isMonitoring)
+
+    harness.preferences.notchDropEnabled = false
+    #expect(!harness.monitor.isMonitoring)
+
+    harness.preferences.notchDropEnabled = true
+    #expect(harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func aNotchedScreenAppearingOrGoingAwayStartsAndStopsMonitoring() {
+    let harness = Harness(sensitivity: .off, notchedScreen: false)
+    harness.monitor.start()
+    #expect(!harness.monitor.isMonitoring)
+
+    harness.notchPresence.send(true)
+    #expect(harness.monitor.isMonitoring)
+
+    harness.notchPresence.send(false)
+    #expect(!harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func anIgnoredAppDragStillShowsTheNotchTarget() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.preferences.ignoredBundleIDs = ["com.example.Ignored"]
+    harness.owner = "com.example.Ignored"
+    harness.showsDragImage = true
+
+    harness.drag(x: 0)
+
+    #expect(harness.targetShown == 1)
+}
+
+@Test @MainActor func theNotchTargetShowsWithoutAShakeOrTheModifier() {
+    let harness = Harness(sensitivity: .normal, dragModifier: .command, notchedScreen: true)
+    harness.showsDragImage = true
+
+    harness.drag(x: 0)
+
+    #expect(harness.targetShown == 1)
+    #expect(harness.shakes.isEmpty)
+}
+
+@Test @MainActor func aShakeShelfAndTheNotchTargetBothFireInOneDrag() {
+    let harness = Harness(notchedScreen: true)
+
+    harness.shake()
+    harness.pasteboardChanged()
+
+    #expect(harness.shakes.count == 1)
+    #expect(harness.targetShown == 1)
+}
+
+@Test @MainActor func turningNotchDropOffDuringADragHidesTheTarget() {
+    // Shake keeps monitoring on, so only the notch rule ends the target.
+    let harness = Harness(notchedScreen: true)
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 1)
+
+    harness.preferences.notchDropEnabled = false
+    #expect(harness.targetHidden == 1)
+
+    harness.pasteboardChanged()
+    harness.mouseUp()
+    #expect(harness.targetShown == 1)
+    #expect(harness.targetHidden == 1)
+}
+
+@Test @MainActor func losingTheNotchedScreenDuringADragHidesTheTargetEvenWhenMonitoringStopsToo() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.monitor.start()
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+
+    harness.notchPresence.send(false)
+
+    #expect(!harness.monitor.isMonitoring)
+    #expect(harness.targetHidden == 1)
+}
+
+@Test @MainActor func aNotchedScreenAppearingDuringADragDoesNotShowTheTargetForThatDrag() {
+    let harness = Harness(notchedScreen: false)
+    harness.drag(x: 0)
+
+    harness.notchPresence.send(true)
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 0)
+
+    harness.mouseUp()
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 1)
+}
+
+// MARK: Notch Drop, further cases
+
+@Test @MainActor func aPasteboardChangeAfterMouseUpDoesNotShowTheNotchTarget() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+
+    harness.drag(x: 0)
+    harness.mouseUp()
+    harness.pasteboardChanged()
+
+    #expect(harness.targetShown == 0)
+    #expect(harness.targetHidden == 0)
+}
+
+@Test @MainActor func aDragThatStartedOnAShelfStaysWithoutTheNotchTargetAfterLeavingIt() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.shelfWindowNumbers = [7]
+
+    harness.drag(x: 0, windowNumber: 7)
+    harness.drag(x: 50, windowNumber: 3)
+    harness.showsDragImage = true
+    harness.drag(x: 100, windowNumber: 3, dt: 0.2)
+    harness.pasteboardChanged()
+    harness.mouseUp()
+
+    #expect(harness.targetShown == 0)
+    #expect(harness.targetHidden == 0)
+
+    // The next drag, from outside a Shelf, shows it again.
+    harness.drag(x: 0, windowNumber: 3)
+    #expect(harness.targetShown == 1)
+}
+
+@Test @MainActor func anIgnoredAppDragShowsTheNotchTargetEvenWithShakeOnButOpensNoShelf() {
+    let harness = Harness(notchedScreen: true)
+    harness.preferences.ignoredBundleIDs = ["com.example.Ignored"]
+    harness.owner = "com.example.Ignored"
+
+    harness.shake()
+    harness.pasteboardChanged()
+
+    #expect(harness.shakes.isEmpty)
+    #expect(harness.targetShown == 1)
+}
+
+@Test @MainActor func aShakeAndTheDragModifierShelfAndTheNotchTargetAllHappenInOneDrag() {
+    let harness = Harness(sensitivity: .normal, dragModifier: .command, notchedScreen: true)
+    harness.showsDragImage = true
+
+    harness.drag(x: 0, modifiers: .command)
+
+    #expect(harness.shakes.count == 1)
+    #expect(harness.targetShown == 1)
+
+    // A drop on the notch happens after the Shelf; ending the drag hides the target as usual.
+    harness.mouseUp()
+    #expect(harness.targetHidden == 1)
+}
+
+@Test @MainActor func theNotchTargetShowsBeforeAShakeThatOpensAShelfLaterInTheSameDrag() {
+    let harness = Harness(notchedScreen: true)
+
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 1)
+    #expect(harness.shakes.isEmpty)
+
+    harness.shake()
+    #expect(harness.shakes.count == 1)
+    #expect(harness.targetShown == 1)
+
+    harness.mouseUp()
+    #expect(harness.targetHidden == 1)
+}
+
+@Test @MainActor func withNotchDropOffTheMonitorBehavesAsBeforeForShake() {
+    let harness = Harness(notchedScreen: true, notchDropEnabled: false)
+    harness.monitor.start()
+    harness.showsDragImage = true
+
+    harness.shake()
+    harness.pasteboardChanged()
+    harness.mouseUp()
+
+    #expect(harness.monitor.isMonitoring)
+    #expect(harness.shakes.count == 1)
+    #expect(harness.targetShown == 0)
+    #expect(harness.targetHidden == 0)
+}
+
+@Test @MainActor func withNotchDropOffTheDragModifierStillWorksAndNothingElseIsMonitored() {
+    let harness = Harness(sensitivity: .off, dragModifier: .command, notchedScreen: true, notchDropEnabled: false)
+    harness.monitor.start()
+    harness.showsDragImage = true
+
+    harness.drag(x: 0, modifiers: .command)
+
+    #expect(harness.monitor.isMonitoring)
+    #expect(harness.shakes.count == 1)
+    #expect(harness.targetShown == 0)
+}
+
+@Test @MainActor func withNotchDropOffAndNoOtherTriggerNothingIsMonitoredEvenOnANotchedScreen() {
+    let harness = Harness(sensitivity: .off, dragModifier: .off, notchedScreen: true, notchDropEnabled: false)
+
+    harness.monitor.start()
+
+    #expect(!harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func turningNotchDropOnWithoutANotchedScreenStartsNoMonitoring() {
+    let harness = Harness(sensitivity: .off, notchedScreen: false, notchDropEnabled: false)
+    harness.monitor.start()
+
+    harness.preferences.notchDropEnabled = true
+
+    #expect(!harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func shakeKeepsMonitoringWhenTheNotchedScreenGoesAway() {
+    let harness = Harness(notchedScreen: true)
+    harness.monitor.start()
+
+    harness.notchPresence.send(false)
+
+    #expect(harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func monitoringNeverStartsForNotchDropBeforeStart() {
+    let harness = Harness(sensitivity: .off, notchedScreen: false)
+
+    harness.notchPresence.send(true)
+
+    #expect(!harness.monitor.isMonitoring)
+}
+
+@Test @MainActor func stoppingMidDragHidesTheNotchTarget() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+    harness.monitor.start()
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 1)
+
+    harness.monitor.stop()
+
+    #expect(harness.targetHidden == 1)
+}
+
+@Test @MainActor func turningNotchDropOnMidDragShowsNoTargetForThatDragButTheNextOne() {
+    let harness = Harness(sensitivity: .normal, notchedScreen: true, notchDropEnabled: false)
+    harness.drag(x: 0)
+
+    harness.preferences.notchDropEnabled = true
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 0)
+
+    harness.mouseUp()
+    harness.drag(x: 0)
+    harness.pasteboardChanged()
+    #expect(harness.targetShown == 1)
+}
+
+@Test @MainActor func turningNotchDropOffMidDragBeforeContentIsFoundHidesNothing() {
+    let harness = Harness(notchedScreen: true)
+    harness.drag(x: 0)
+
+    harness.preferences.notchDropEnabled = false
+    harness.pasteboardChanged()
+    harness.mouseUp()
+
+    #expect(harness.targetShown == 0)
+    #expect(harness.targetHidden == 0)
+}
+
+@Test @MainActor func everyContentDragEndsWithExactlyOneHideForOneShow() {
+    let harness = Harness(sensitivity: .off, notchedScreen: true)
+
+    for _ in 0..<3 {
+        harness.drag(x: 0)
+        harness.pasteboardChanged()
+        harness.mouseUp()
+    }
+
+    #expect(harness.targetShown == 3)
+    #expect(harness.targetHidden == 3)
+}
+
+@Test @MainActor func aShakeInADragFromAShelfNeitherOpensAShelfNorShowsTheNotchTarget() {
+    let harness = Harness(notchedScreen: true)
+    harness.shelfWindowNumbers = [7]
+
+    harness.shake(firstWindowNumber: 7)
+    harness.pasteboardChanged()
+
+    #expect(harness.shakes.isEmpty)
+    #expect(harness.targetShown == 0)
 }

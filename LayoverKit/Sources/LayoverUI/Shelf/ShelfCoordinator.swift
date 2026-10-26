@@ -59,13 +59,44 @@ public final class ShelfCoordinator: NSObject, NSWindowDelegate {
 
     /// Opens an empty Shelf next to `cursor` (screen coordinates, as in `NSEvent.mouseLocation`).
     public func openNewShelf(at cursor: CGPoint) {
+        openNewShelf(at: cursor, holding: [])
+    }
+
+    /// Opens a Shelf next to `cursor` that already holds `contents`, and returns its ID. The contents are
+    /// added in this same main-actor turn, which Owned File cleanup relies on.
+    @discardableResult
+    func openNewShelf(at cursor: CGPoint, holding contents: [ItemContent]) -> Shelf.ID? {
         let id = mutate { $0.newShelf() }
-        guard let shelf = openShelf(id) else { return }
+        add(contents, to: id)
+        guard let shelf = openShelf(id) else { return nil }
         let size = ShelfCompactView.size
         let origin = Self.screen(containing: cursor).map {
             ShelfPlacement.origin(for: size, cursor: cursor, visibleFrame: $0.visibleFrame)
         } ?? CGPoint(x: cursor.x - size.width / 2, y: cursor.y - ShelfPlacement.gapBelowCursor - size.height)
         show(shelf, at: origin)
+        return id
+    }
+
+    /// Opens a new Shelf next to `cursor` for what was dropped on the notch, as `pasteboard`. Promised
+    /// files open an empty Shelf at once that receives them as they arrive; anything else is imported
+    /// now. Returns false, opening nothing, when there is nothing to take or importing failed. Call
+    /// synchronously from the drop handler, while the dragging pasteboard is still valid.
+    public func openNewShelf(at cursor: CGPoint, receiving pasteboard: NSPasteboard) -> Bool {
+        switch importer.droppedContent(from: pasteboard) {
+        case let .promises(reception):
+            guard let id = openNewShelf(at: cursor, holding: []) else { return false }
+            Task { [weak self] in
+                await reception.receiveAndLog(
+                    shouldAdopt: { self?.openShelf(id) != nil },
+                    deliver: { self?.add($0, to: id) }
+                )
+            }
+            return true
+        case let .contents(contents):
+            return openNewShelf(at: cursor, holding: contents) != nil
+        case nil:
+            return false
+        }
     }
 
     /// Reopens a Recent Shelf where it was last shown.

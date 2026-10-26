@@ -119,10 +119,36 @@ Record what Finder reports for each of these.
 - [ ] Optional, first-launch conflict rule: assign ⌃⌥⌘N to a system shortcut in System Settings → Keyboard → Keyboard Shortcuts, delete the `hasCheckedHotKeyConflict` (and `newShelfHotKey`) preference, relaunch. Expected: the hot key is unassigned and the menu item shows no shortcut.
 - [ ] Register ⌃⌥⌘N in another app first, then launch Layover. Expected: the New Shelf menu item shows no shortcut.
 
+## Notch Drop
+
+Run on a Mac with a notch, with Notch Drop on and its highlight on "On hover" unless a step says otherwise.
+
+- [ ] Drag a Finder file over the notch and drop it. Expected: exactly one new Shelf opens just below the notch, holding the file as an Item that refers to the original (Reveal in Finder shows the original).
+- [ ] Drop selected text, a link and an image from Safari on the notch, one drag each. Expected: each opens a Shelf holding an Owned File (`.txt`, `.webloc`, an image).
+- [ ] Drag a Mail attachment (a promised file) onto the notch. Expected: a Shelf opens at once, empty, and receives the file as a `.received` Owned File when it arrives.
+- [ ] Set the highlight to "On hover" and drag a Finder file toward the notch. Expected: no outline until the drag is over the notch; it clears when the drag leaves.
+- [ ] Set the highlight to "Always". Expected: the outline shows around the notch for the whole drag of a Finder file, and not for a drag that carries nothing a Shelf accepts.
+- [ ] Set the highlight to "Never". Expected: no outline appears, and dropping a Finder file on the notch still opens a Shelf holding it.
+- [ ] Drag something a Shelf does not accept (for example a color swatch dragged from the macOS color panel, which carries only color data; an app icon dragged from the Dock may carry a file URL, which a Shelf accepts) over the notch. Expected: no highlight, the drop is refused, and no Shelf opens.
+- [ ] Drag an Item out of a Shelf and over the notch. Expected: no Notch Drop target shows, whatever the highlight.
+- [ ] Add Finder to Ignored Apps and drag a Finder file to the notch. Expected: the target shows and the drop opens a Shelf; Ignored Apps do not apply to Notch Drop.
+- [ ] Release a drag in the strip just outside the notch (the outline's margin). Expected: the drop is not taken by the notch.
+- [ ] Drop on the notch with the cursor still over the notch when you release the mouse button, repeated a few times. Expected: the Shelf opens every time; the target never disappears before the drop lands.
+- [ ] After a drag ends, with nothing dropped, check the notch. Expected: no outline is left behind; the next drag shows it again as set.
+- [ ] Do a drag and drop on the notch from a full-screen app's Space. Expected: the target shows over the full-screen app and the Shelf opens.
+- [ ] Connect an external, non-notched display and drag across it. Expected: no target on it and its drags are unaffected; the notch still works.
+- [ ] Close the lid with an external display connected, then reopen it, without relaunching Layover. Expected: Notch Drop works at the notch again.
+- [ ] Shake in the same drag that goes to the notch. Expected: the Shake's empty Shelf opens as before, and a drop on the notch still opens its own, separate Shelf.
+- [ ] Turn Notch Drop off in Settings, then drag a Finder file over the notch. Expected: no target, nothing opens, and Shake and the Drag Modifier behave as before.
+- [ ] Turn Notch Drop off during a drag. Expected: the target goes away at once.
+- [ ] Exercise Notch Drop. Expected: no permission prompt (Accessibility, Input Monitoring or Screen Recording).
+
 ## Settings
 
 - [ ] Set Shake sensitivity to Off, then Normal, High and Highest. Expected: Off stops Shake immediately; the others change the thresholds with no relaunch.
 - [ ] Open Settings on a fresh install, then pick ⌘, ⌃, ⇧ and Off in turn for "Modifier key to open a Shelf", also with Shake set to Off. Expected: the picker starts at Off, each change applies at once with no relaunch, and the key works with Shake Off.
+- [ ] Open Settings on a fresh install. Expected: "Notch Drop" is on and "Notch Drop highlight" is "On hover", on any Mac, with the note "Works on displays with a notch." below them; the Settings window shows them without clipping.
+- [ ] Turn Notch Drop off, then on, and pick Always, On hover and Never in turn. Expected: the highlight picker is disabled while Notch Drop is off; each change applies at once with no relaunch (the next drag uses it), and both settings are kept after a relaunch.
 - [ ] Record a new shortcut (for example ⌃⌥⌘K). Expected: it works at once, the menu item shows it, and the old combo no longer opens a Shelf.
 - [ ] While recording, press the current combo, then Esc, then Backspace. Expected: the current combo is recorded rather than opening a Shelf; Esc restores the old one; Backspace clears it (the menu item loses its key).
 - [ ] While recording, press ⌘C, then ⌘⇧K. Expected: "Use ⌃ or ⌥ in the shortcut." shows, recording continues and the current shortcut is unchanged.

@@ -39,6 +39,16 @@ struct SettingsView: View {
                         Text(modifier.title).tag(modifier)
                     }
                 }
+                Toggle(String(localized: "Notch Drop"), isOn: $preferences.notchDropEnabled)
+                Picker(String(localized: "Notch Drop highlight"), selection: $preferences.notchDropHighlight) {
+                    ForEach(NotchDropHighlight.allCases, id: \.self) { highlight in
+                        Text(highlight.title).tag(highlight)
+                    }
+                }
+                .disabled(!preferences.notchDropEnabled)
+                Text(String(localized: "Works on displays with a notch."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(String(localized: "Ignored Apps")) {
@@ -59,7 +69,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 560)
+        .frame(width: 480, height: 650)
         // The user may have approved Layover in System Settings while this window was in the background.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             loginStatus = LaunchAtLogin.status
@@ -101,6 +111,16 @@ private extension DragModifier {
         case .command: String(localized: "⌘ Command")
         case .control: String(localized: "⌃ Control")
         case .shift: String(localized: "⇧ Shift")
+        }
+    }
+}
+
+private extension NotchDropHighlight {
+    var title: String {
+        switch self {
+        case .always: String(localized: "Always")
+        case .onHover: String(localized: "On hover")
+        case .never: String(localized: "Never")
         }
     }
 }
